@@ -13,3 +13,17 @@ create table if not exists vendor_submissions(
  candidate_email_hash text,status text not null default 'SUBMITTED',fee jsonb not null default '{}',
  submitted_at timestamptz not null default now()
 );
+
+create table if not exists departments(
+ id text primary key,tenant_id text not null,organisation_id text not null,name text not null,slug text not null,
+ parent_id text,active boolean not null default true,unique(tenant_id,organisation_id,slug)
+);
+create table if not exists teams(
+ id text primary key,tenant_id text not null,organisation_id text not null,department_id text,name text not null,
+ manager_user_id text,active boolean not null default true
+);
+create table if not exists locations(
+ id text primary key,tenant_id text not null,organisation_id text,name text not null,country_code text not null default 'GB',
+ timezone text not null default 'Europe/London',address jsonb not null default '{}',remote_allowed boolean not null default true,
+ active boolean not null default true
+);
