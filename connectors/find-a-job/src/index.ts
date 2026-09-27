@@ -1,0 +1,1 @@
+import{httpJobBoardConnector}from"@raeburn/connectors";export const findAJobConnector=httpJobBoardConnector({name:"find-a-job",displayName:"Find a Job",endpointEnv:"FIND_A_JOB_API_BASE_URL",apiKeyEnv:"FIND_A_JOB_API_KEY"});
