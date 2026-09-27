@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { connect, JSONCodec, type NatsConnection } from "nats";
 import pg from "pg";
 import type { DomainEvent } from "@raeburn/events";
@@ -71,4 +71,24 @@ export async function withRetry<T>(fn:()=>Promise<T>,options:{attempts?:number;b
 export function redact(value:Record<string,unknown>){
   const sensitive=new Set(["password","token","authorization","email","telephone","phone","cv","resume","coverNote"]);
   return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,sensitive.has(k)? "[REDACTED]":v]));
+}
+
+
+function tenantDataKey(tenantId:string){
+  const master=process.env.TENANT_ENCRYPTION_MASTER_KEY||process.env.AUTH_SECRET||"development-only-change-me";
+  return createHmac("sha256",master).update("raeburn-talent:"+tenantId).digest();
+}
+export function tenantEncrypt(tenantId:string,value:string){
+  const key=tenantDataKey(tenantId),iv=randomBytes(12),cipher=createCipheriv("aes-256-gcm",key,iv),data=Buffer.concat([cipher.update(value,"utf8"),cipher.final()]),tag=cipher.getAuthTag();
+  return Buffer.concat([Buffer.from([1]),iv,tag,data]).toString("base64url");
+}
+export function tenantDecrypt(tenantId:string,value:string){
+  const raw=Buffer.from(value,"base64url");if(raw[0]!==1)throw new Error("Unsupported encrypted payload version");
+  const iv=raw.subarray(1,13),tag=raw.subarray(13,29),data=raw.subarray(29),decipher=createDecipheriv("aes-256-gcm",tenantDataKey(tenantId),iv);decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(data),decipher.final()]).toString("utf8");
+}
+export function organisationScope(headers:Headers){
+  const requested=headers.get("x-organisation-id");
+  const allowed=(headers.get("x-organisation-ids")||"").split(",").map(x=>x.trim()).filter(Boolean);
+  return{requested,allowed,canAccess:(organisationId:string|null|undefined)=>!organisationId||allowed.includes("*")||allowed.includes(organisationId)};
 }
