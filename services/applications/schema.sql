@@ -36,3 +36,8 @@ create table if not exists candidate_experience_feedback(
  created_at timestamptz not null default now()
 );
 create index if not exists candidate_experience_feedback_app on candidate_experience_feedback(tenant_id,application_id,created_at desc);
+
+create table if not exists candidate_campaign_schedules(
+ tenant_id text not null,candidate_id text not null,campaign_type text not null,scheduled_action_id text not null,status text not null default 'ACTIVE',
+ created_at timestamptz not null default now(),updated_at timestamptz not null default now(),primary key(tenant_id,candidate_id,campaign_type)
+);
