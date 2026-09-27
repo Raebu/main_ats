@@ -1,0 +1,2 @@
+import{NextResponse}from"next/server";import{portalFetch}from"../../../../lib/portal";
+export async function POST(req:Request){const r=await portalFetch("job-alerts",{method:"POST",body:JSON.stringify(await req.json())});return NextResponse.json(await r.json(),{status:r.status});}
