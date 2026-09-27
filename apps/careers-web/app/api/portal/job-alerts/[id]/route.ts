@@ -1,0 +1,2 @@
+import{NextResponse}from"next/server";import{portalFetch}from"../../../../../lib/portal";
+export async function DELETE(_:Request,{params}:{params:Promise<{id:string}>}){const{id}=await params,r=await portalFetch("job-alerts/"+encodeURIComponent(id),{method:"DELETE"});return NextResponse.json(await r.json(),{status:r.status});}
