@@ -17,3 +17,6 @@ create table if not exists memberships(
  permissions jsonb not null default '[]',
  primary key(user_id,tenant_id,organisation_id)
 );
+
+alter table users add column if not exists password_hash text;
+alter table users add column if not exists last_login_at timestamptz;
