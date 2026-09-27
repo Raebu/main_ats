@@ -31,3 +31,19 @@ create table if not exists candidate_merges(
  merged_at timestamptz not null default now(),actor text
 );
 create table if not exists outbox_events(id text primary key,event_type text not null,payload jsonb not null,created_at timestamptz not null default now(),published_at timestamptz,retry_count int not null default 0,last_error text);
+alter table candidates add column if not exists employment_history jsonb not null default '[]';
+alter table candidates add column if not exists education jsonb not null default '[]';
+alter table candidates add column if not exists skills jsonb not null default '[]';
+alter table candidates add column if not exists qualifications jsonb not null default '[]';
+alter table candidates add column if not exists certifications jsonb not null default '[]';
+alter table candidates add column if not exists languages jsonb not null default '[]';
+alter table candidates add column if not exists salary_expectation jsonb not null default '{}';
+alter table candidates add column if not exists notice_period text;
+alter table candidates add column if not exists work_eligibility jsonb not null default '{}';
+alter table candidates add column if not exists mobility jsonb not null default '{}';
+alter table candidates add column if not exists work_preferences jsonb not null default '{}';
+alter table candidates add column if not exists preferred_business_areas jsonb not null default '[]';
+alter table candidates add column if not exists preferred_role_types jsonb not null default '[]';
+alter table candidates add column if not exists engagement_score numeric not null default 0;
+create index if not exists candidate_phone_idx on candidates(tenant_id,telephone);
+create index if not exists candidate_linkedin_idx on candidates(tenant_id,linkedin);
