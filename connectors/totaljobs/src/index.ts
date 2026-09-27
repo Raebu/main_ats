@@ -1,0 +1,1 @@
+import{httpJobBoardConnector}from"@raeburn/connectors";export const totaljobsConnector=httpJobBoardConnector({name:"totaljobs",displayName:"Totaljobs",endpointEnv:"TOTALJOBS_API_BASE_URL",apiKeyEnv:"TOTALJOBS_API_KEY"});
