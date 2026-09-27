@@ -55,7 +55,7 @@ export default function TalentCopilot({initialConversations}:{initialConversatio
  function submit(e:FormEvent){e.preventDefault();void ask(input);}
 
  return <div className="copilotLayout">
-  <aside className="copilotHistory">
+  <div className="copilotHistory">
    <button onClick={newConversation}>+ New conversation</button>
    <h3>Recent</h3>
    {(conversations||[]).map((c:any)=><button className={c.id===conversationId?"historyActive":"historyButton"} key={c.id} onClick={()=>loadConversation(c.id)}>{c.title||"Conversation"}</button>)}
