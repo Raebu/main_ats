@@ -1,0 +1,1 @@
+export default function Loading(){return <div aria-busy="true"><div className="skeleton skeletonTitle"/><div className="skeleton skeletonTable"/></div>}
