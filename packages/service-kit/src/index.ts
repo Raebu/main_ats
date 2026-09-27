@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHmac, randomBytes, randomUUID } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { connect, JSONCodec, type NatsConnection } from "nats";
 import pg from "pg";
 import type { DomainEvent } from "@raeburn/events";
@@ -15,7 +15,22 @@ export async function publish(event:DomainEvent){
   const bus=await eventBus();
   bus.publish(event.eventType,codec.encode(event));
 }
+export function serviceAuthHeaders(base:Record<string,string>={}){
+  const secret=process.env.SERVICE_AUTH_SECRET;if(!secret)return base;
+  const service=process.env.SERVICE_NAME||"raeburn-service",timestamp=String(Date.now()),tenantId=base["x-tenant-id"]||process.env.DEFAULT_TENANT_ID||"tenant_raeburn_group",correlationId=base["x-correlation-id"]||randomUUID();
+  const signature=createHmac("sha256",secret).update([service,timestamp,tenantId,correlationId].join("|")).digest("base64url");
+  return{...base,"x-tenant-id":tenantId,"x-correlation-id":correlationId,"x-service-name":service,"x-service-timestamp":timestamp,"x-service-signature":signature};
+}
+export function verifyServiceAuth(headers:Headers){
+  if(process.env.REQUIRE_SERVICE_AUTH!=="true")return true;
+  const secret=process.env.SERVICE_AUTH_SECRET,service=headers.get("x-service-name"),timestamp=headers.get("x-service-timestamp"),signature=headers.get("x-service-signature"),tenantId=headers.get("x-tenant-id")||process.env.DEFAULT_TENANT_ID||"tenant_raeburn_group",correlationId=headers.get("x-correlation-id")||"";
+  if(!secret||!service||!timestamp||!signature)return false;
+  const age=Math.abs(Date.now()-Number(timestamp));if(!Number.isFinite(age)||age>120000)return false;
+  const expected=createHmac("sha256",secret).update([service,timestamp,tenantId,correlationId].join("|")).digest("base64url"),a=Buffer.from(expected),b=Buffer.from(signature);
+  return a.length===b.length&&timingSafeEqual(a,b);
+}
 export function context(headers:Headers){
+  if(!verifyServiceAuth(headers))throw new Error("SERVICE_AUTH_REQUIRED");
   return {
     correlationId:headers.get("x-correlation-id")||randomUUID(),
     tenantId:headers.get("x-tenant-id")||process.env.DEFAULT_TENANT_ID||"tenant_raeburn_group"
