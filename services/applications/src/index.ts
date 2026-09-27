@@ -22,8 +22,9 @@ const tokenHash=(token:string)=>createHash("sha256").update(token).digest("hex")
 app.get("/health",async c=>c.json(await health("applications")));
 
 app.get("/v1/applications",async c=>{
- const x=context(c.req.raw.headers),jobId=c.req.query("jobId"),candidateId=c.req.query("candidateId"),values:any[]=[x.tenantId];
+ const x=context(c.req.raw.headers),jobId=c.req.query("jobId"),candidateId=c.req.query("candidateId"),values:any[]=[x.tenantId],allowed=(c.req.header("x-organisation-ids")||"").split(",").map(v=>v.trim()).filter(Boolean);
  let sql="select * from applications where tenant_id=$1";
+ if(allowed.length&&!allowed.includes("*")){values.push(allowed);sql+=" and organisation_id=any($"+values.length+"::text[])";}
  if(jobId){values.push(jobId);sql+=" and job_id=$"+values.length;}
  if(candidateId){values.push(candidateId);sql+=" and candidate_id=$"+values.length;}
  sql+=" order by created_at desc limit 250";
@@ -41,7 +42,7 @@ app.post("/v1/applications",async c=>{
  if(!candRes.ok)return c.json({code:"CANDIDATE_RESOLUTION_FAILED",message:"Could not resolve candidate",correlationId:x.correlationId},502);
  const candidate:any=await candRes.json(),id=randomUUID(),portalToken=randomBytes(32).toString("base64url"),sessionId=randomUUID();
  const application=await withTransaction(async client=>{
-   const{rows}=await client.query("insert into applications(id,tenant_id,job_id,candidate_id,right_to_work,availability,cover_note,privacy_notice_version,privacy_accepted_at,attribution,answers) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb) returning *",[id,x.tenantId,body.jobId,candidate.id,body.rightToWork||null,body.availability||null,body.coverNote||null,body.privacyNoticeVersion,body.privacyAcceptedAt,JSON.stringify(body.attribution),JSON.stringify(body.answers)]);
+   const{rows}=await client.query("insert into applications(id,tenant_id,job_id,candidate_id,organisation_id,right_to_work,availability,cover_note,privacy_notice_version,privacy_accepted_at,attribution,answers) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb) returning *",[id,x.tenantId,body.jobId,candidate.id,job.hiringOrganisationId||job.operatingOrganisationId||null,body.rightToWork||null,body.availability||null,body.coverNote||null,body.privacyNoticeVersion,body.privacyAcceptedAt,JSON.stringify(body.attribution),JSON.stringify(body.answers)]);
    await client.query("insert into candidate_portal_sessions(id,tenant_id,application_id,candidate_id,token_hash,expires_at) values($1,$2,$3,$4,$5,now()+interval '30 days')",[sessionId,x.tenantId,id,candidate.id,tokenHash(portalToken)]);
    const value=map(rows[0]);
    await writeOutbox(client,createEvent({eventType:Events.applicationCreated,eventVersion:1,producer:"applications",correlationId:x.correlationId,tenantId:x.tenantId,payload:{...value,candidate,job}}));
@@ -202,9 +203,9 @@ app.post("/v1/applications/portal/revoke",async c=>{
  return c.json({ok:true});
 });
 
-app.get("/v1/applications/:id",async c=>{const x=context(c.req.raw.headers),{rows}=await pool.query("select * from applications where tenant_id=$1 and id=$2",[x.tenantId,c.req.param("id")]);if(!rows[0])return c.json({code:"NOT_FOUND",message:"Application not found",correlationId:x.correlationId},404);return c.json(map(rows[0]));});
+app.get("/v1/applications/:id",async c=>{const x=context(c.req.raw.headers),allowed=(c.req.header("x-organisation-ids")||"").split(",").map(v=>v.trim()).filter(Boolean),{rows}=await pool.query("select * from applications where tenant_id=$1 and id=$2",[x.tenantId,c.req.param("id")]);if(!rows[0]||(allowed.length&&!allowed.includes("*")&&(!rows[0].organisation_id||!allowed.includes(rows[0].organisation_id))))return c.json({code:"NOT_FOUND",message:"Application not found",correlationId:x.correlationId},404);return c.json(map(rows[0]));});
 app.post("/v1/applications/candidate/:candidateId/anonymise",async c=>{const x=context(c.req.raw.headers),candidateId=c.req.param("candidateId");const{rows}=await pool.query("update applications set right_to_work=null,availability=null,cover_note=null,answers='[]'::jsonb,attribution='{}'::jsonb,updated_at=now() where tenant_id=$1 and candidate_id=$2 returning id",[x.tenantId,candidateId]);await pool.query("update candidate_portal_sessions set revoked_at=now() where tenant_id=$1 and candidate_id=$2 and revoked_at is null",[x.tenantId,candidateId]);return c.json({candidateId,applicationsAnonymised:rows.length,applicationIds:rows.map(r=>r.id)});});
 
 serve({fetch:app.fetch,port:Number(process.env.PORT||4103)});
 
-function map(r:any){return{id:r.id,tenantId:r.tenant_id,jobId:r.job_id,candidateId:r.candidate_id,rightToWork:r.right_to_work,availability:r.availability,coverNote:r.cover_note,privacyNoticeVersion:r.privacy_notice_version,privacyAcceptedAt:r.privacy_accepted_at,attribution:r.attribution,answers:r.answers,createdAt:r.created_at};}
+function map(r:any){return{id:r.id,tenantId:r.tenant_id,jobId:r.job_id,candidateId:r.candidate_id,organisationId:r.organisation_id,rightToWork:r.right_to_work,availability:r.availability,coverNote:r.cover_note,privacyNoticeVersion:r.privacy_notice_version,privacyAcceptedAt:r.privacy_accepted_at,attribution:r.attribution,answers:r.answers,createdAt:r.created_at};}
