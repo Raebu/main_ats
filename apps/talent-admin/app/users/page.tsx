@@ -1,0 +1,1 @@
+import{api}from"../../lib/api";import UserManager from"../../components/UserManager";export default async function Page(){const users=await api("/v1/identity/users")||[];return <><h1>Users & access</h1><p>Manage ATS users and role-based access.</p><UserManager users={users}/></>}
