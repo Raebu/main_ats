@@ -102,6 +102,8 @@ async function handle(subject: string) {
               " at The Raeburn Group. We have received your application and will keep you updated."
           );
         }
+      } else if (subject === "interview.feedback_reminder.v1" && p.reviewerId && String(p.reviewerId).includes("@")) {
+        await sendMessage(e,p.applicationId,String(p.reviewerId),"Interview feedback reminder — Raeburn Talent","Your independent interview scorecard is due. Please submit your evidence before panel feedback is opened.");
       } else {
         if (!applicationId) {
           await pool.query("insert into processed_events(event_id) values($1) on conflict do nothing", [e.eventId]);
@@ -125,6 +127,10 @@ async function handle(subject: string) {
           );
         }
 
+        if (recipient && subject === "assessment.assigned.v1") {
+          await sendMessage(e,applicationId,recipient,"Assessment assigned — "+(h?.job?.title||"Raeburn opportunity"),"An assessment has been assigned to your application. Sign in to your candidate portal to review the instructions and deadline.");
+        }
+
         if (recipient && subject === "offer.issued.v1") {
           await sendMessage(
             e,
@@ -135,6 +141,10 @@ async function handle(subject: string) {
               (h?.job?.title || "this opportunity") +
               ". Please review the offer information provided by the recruitment team."
           );
+        }
+
+        if (recipient && subject === "offer.expired.v1") {
+          await sendMessage(e,applicationId,recipient,"Offer expired — "+(h?.job?.title||"Raeburn opportunity"),"The offer associated with your application has expired. Please contact the recruitment team if you believe this is unexpected.");
         }
 
         if (recipient && subject === "candidate.hired.v1") {
@@ -175,7 +185,10 @@ async function handle(subject: string) {
 for (const subject of [
   "application.created.v1",
   "interview.scheduled.v1",
+  "interview.feedback_reminder.v1",
+  "assessment.assigned.v1",
   "offer.issued.v1",
+  "offer.expired.v1",
   "candidate.hired.v1"
 ]) {
   handle(subject);
