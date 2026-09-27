@@ -10,7 +10,7 @@ import{health,pool}from"@raeburn/service-kit";
 const app=new Hono();
 const secret=()=>new TextEncoder().encode(process.env.AUTH_SECRET||"change-me");
 const tenant=()=>process.env.DEFAULT_TENANT_ID||"tenant_raeburn_group";
-const mfaKey=()=>createHash("sha256").update(process.env.MFA_ENCRYPTION_KEY||process.env.AUTH_SECRET||"change-me").digest();
+const mfaKey=()=>createHmac("sha256",process.env.MFA_ENCRYPTION_KEY||process.env.AUTH_SECRET||"change-me").update("mfa:"+tenant()).digest();
 const sha=(v:string)=>createHash("sha256").update(v).digest("hex");
 const b64=(b:Buffer)=>b.toString("base64url");
 const rpId=()=>process.env.WEBAUTHN_RP_ID||"talent.theraeburngroup.com";
