@@ -1,0 +1,1 @@
+create table if not exists scheduled_actions(id text primary key,tenant_id text not null,action_type text not null,run_at timestamptz not null,payload jsonb not null,status text not null default 'PENDING',created_at timestamptz not null default now(),executed_at timestamptz);create index if not exists scheduled_due on scheduled_actions(status,run_at);
