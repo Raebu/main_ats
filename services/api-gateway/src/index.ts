@@ -1,4 +1,4 @@
-import{createHash,randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{requiredPermission,hasPermission}from"@raeburn/policy";
+import{createHash,randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{requiredPermission,hasPermission}from"@raeburn/policy";import{serviceAuthHeaders}from"@raeburn/service-kit";
 const app=new Hono(),IDENTITY=process.env.IDENTITY_URL||"http://localhost:4109",AUDIT=process.env.AUDIT_URL||"http://localhost:4111";
 const rate=new Map<string,{count:number;reset:number}>();
 const maxBody=Number(process.env.MAX_REQUEST_BYTES||12*1024*1024);
@@ -71,7 +71,8 @@ app.all("/v1/*",async c=>{
  if(requestedOrg&&claims&&!((claims.organisationIds||[]).includes("*")||(claims.organisationIds||[]).includes(requestedOrg)))return c.json({code:"ORGANISATION_FORBIDDEN",message:"Access to this organisation is not permitted",correlationId},403);
  if(requestedOrg)headers.set("x-organisation-id",requestedOrg);
  headers.delete("host");
- const init:any={method:c.req.method,headers,body:["GET","HEAD"].includes(c.req.method)?undefined:c.req.raw.body};
+ const signedHeaders=new Headers(serviceAuthHeaders(Object.fromEntries(headers.entries())));
+ const init:any={method:c.req.method,headers:signedHeaders,body:["GET","HEAD"].includes(c.req.method)?undefined:c.req.raw.body};
  if(init.body)init.duplex="half";
  const response=await fetch(target,{...init,signal:AbortSignal.timeout(Number(process.env.UPSTREAM_TIMEOUT_MS||15000))});
  const outHeaders=new Headers(response.headers);
@@ -79,7 +80,7 @@ app.all("/v1/*",async c=>{
  const sensitiveRead=c.req.method==="GET"&&[/^\/v1\/candidates/,/^\/v1\/documents/,/^\/v1\/privacy/,/^\/v1\/offers/,/^\/v1\/intelligence/,/^\/v1\/audit/].some(re=>re.test(url.pathname));
  if(claims&&(!["GET","HEAD","OPTIONS"].includes(c.req.method)||sensitiveRead)){
    const ip=c.req.header("cf-connecting-ip")||c.req.header("x-forwarded-for")?.split(",")[0]?.trim()||"unknown",ipHash=createHash("sha256").update(ip).digest("hex");
-   fetch(AUDIT+"/internal/requests",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({tenantId,actor:claims.sub||null,actorEmail:claims.email||null,method:c.req.method,path:url.pathname,status:response.status,durationMs:Date.now()-requestStarted,correlationId,ipHash,userAgent:c.req.header("user-agent")||null,organisationIds:claims.organisationIds||[],sensitiveRead})}).catch(()=>{});
+   fetch(AUDIT+"/internal/requests",{method:"POST",headers:serviceAuthHeaders({"content-type":"application/json","x-tenant-id":tenantId,"x-correlation-id":correlationId}),body:JSON.stringify({tenantId,actor:claims.sub||null,actorEmail:claims.email||null,method:c.req.method,path:url.pathname,status:response.status,durationMs:Date.now()-requestStarted,correlationId,ipHash,userAgent:c.req.header("user-agent")||null,organisationIds:claims.organisationIds||[],sensitiveRead})}).catch(()=>{});
  }
  return new Response(response.body,{status:response.status,headers:outHeaders});
 });
