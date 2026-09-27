@@ -3,7 +3,7 @@ import { JSONCodec } from "nats";
 import nodemailer from "nodemailer";
 import type { DomainEvent } from "@raeburn/events";
 import { createEvent, Events } from "@raeburn/events";
-import { eventBus, pool, withTransaction, writeOutbox } from "@raeburn/service-kit";
+import { eventBus, pool, serviceAuthHeaders, withTransaction, writeOutbox } from "@raeburn/service-kit";
 
 const bus = await eventBus();
 const codec = JSONCodec<DomainEvent>();
@@ -19,7 +19,7 @@ const CANDIDATES = process.env.CANDIDATES_URL || "http://localhost:4102";
 const JOBS = process.env.JOBS_URL || "http://localhost:4101";
 
 async function hydrate(tenantId: string, correlationId: string, applicationId: string) {
-  const headers = { "x-tenant-id": tenantId, "x-correlation-id": correlationId };
+  const headers = serviceAuthHeaders({ "x-tenant-id": tenantId, "x-correlation-id": correlationId });
   const aRes = await fetch(APPLICATIONS + "/v1/applications/" + applicationId, { headers });
   if (!aRes.ok) return null;
   const application: any = await aRes.json();
@@ -90,8 +90,8 @@ async function handle(subject: string) {
       let applicationId = p.applicationId || p.application_id || p.id;
 
       if (subject === "job.published.v1") {
-        const r=await fetch(APPLICATIONS+"/v1/applications/job-alerts/match",{method:"POST",headers:{"content-type":"application/json","x-tenant-id":e.tenantId,"x-correlation-id":e.correlationId},body:JSON.stringify(p)}),alerts:any[]=r.ok?await r.json():[];
-        for(const alert of alerts){if(alert.candidateId){const cr=await fetch(CANDIDATES+"/v1/candidates/"+alert.candidateId,{headers:{"x-tenant-id":e.tenantId,"x-correlation-id":e.correlationId}}),candidate:any=cr.ok?await cr.json():null;if(candidate?.doNotContact)continue;}const careers=process.env.CAREERS_BASE_URL||"https://theraeburngroup.com";await sendMessage(e,null,alert.email,"New Raeburn opportunity — "+(p.title||"Careers"),"A new opportunity matches your Raeburn job alert: "+(p.title||"Open role")+(p.location?" · "+p.location:"")+". Explore the role at "+careers+"/careers/jobs/"+p.slug+".\n\nStop this alert: "+careers+"/careers/job-alerts/unsubscribe?token="+encodeURIComponent(alert.manageToken||""));}
+        const r=await fetch(APPLICATIONS+"/v1/applications/job-alerts/match",{method:"POST",headers:serviceAuthHeaders({"content-type":"application/json","x-tenant-id":e.tenantId,"x-correlation-id":e.correlationId}),body:JSON.stringify(p)}),alerts:any[]=r.ok?await r.json():[];
+        for(const alert of alerts){if(alert.candidateId){const cr=await fetch(CANDIDATES+"/v1/candidates/"+alert.candidateId,{headers:serviceAuthHeaders({"x-tenant-id":e.tenantId,"x-correlation-id":e.correlationId})}),candidate:any=cr.ok?await cr.json():null;if(candidate?.doNotContact)continue;}const careers=process.env.CAREERS_BASE_URL||"https://theraeburngroup.com";await sendMessage(e,null,alert.email,"New Raeburn opportunity — "+(p.title||"Careers"),"A new opportunity matches your Raeburn job alert: "+(p.title||"Open role")+(p.location?" · "+p.location:"")+". Explore the role at "+careers+"/careers/jobs/"+p.slug+".\n\nStop this alert: "+careers+"/careers/job-alerts/unsubscribe?token="+encodeURIComponent(alert.manageToken||""));}
       } else if (subject === "application.created.v1") {
         applicationId = p.id;
         const recipient = p.candidate?.email;
