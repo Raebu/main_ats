@@ -36,7 +36,7 @@ async function hydrate(tenantId: string, correlationId: string, applicationId: s
 
 async function sendMessage(
   e: DomainEvent,
-  applicationId: string,
+  applicationId: string | null,
   recipient: string,
   subject: string,
   body: string
@@ -89,7 +89,10 @@ async function handle(subject: string) {
       const p: any = e.payload || {};
       let applicationId = p.applicationId || p.application_id || p.id;
 
-      if (subject === "application.created.v1") {
+      if (subject === "job.published.v1") {
+        const r=await fetch(APPLICATIONS+"/v1/applications/job-alerts/match",{method:"POST",headers:{"content-type":"application/json","x-tenant-id":e.tenantId,"x-correlation-id":e.correlationId},body:JSON.stringify(p)}),alerts:any[]=r.ok?await r.json():[];
+        for(const alert of alerts){if(alert.candidateId){const cr=await fetch(CANDIDATES+"/v1/candidates/"+alert.candidateId,{headers:{"x-tenant-id":e.tenantId,"x-correlation-id":e.correlationId}}),candidate:any=cr.ok?await cr.json():null;if(candidate?.doNotContact)continue;}await sendMessage(e,null,alert.email,"New Raeburn opportunity — "+(p.title||"Careers"),"A new opportunity matches your Raeburn job alert: "+(p.title||"Open role")+(p.location?" · "+p.location:"")+". Explore the role at "+(process.env.CAREERS_BASE_URL||"https://theraeburngroup.com")+"/careers/jobs/"+p.slug+".");}
+      } else if (subject === "application.created.v1") {
         applicationId = p.id;
         const recipient = p.candidate?.email;
         if (recipient) {
@@ -195,6 +198,7 @@ async function handle(subject: string) {
 }
 
 for (const subject of [
+  "job.published.v1",
   "application.created.v1",
   "interview.scheduled.v1",
   "interview.feedback_reminder.v1",
