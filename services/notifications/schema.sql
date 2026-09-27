@@ -1,1 +1,2 @@
 create table if not exists notifications(id text primary key,tenant_id text not null,kind text not null,title text not null,body text not null,resource_type text,resource_id text,severity text not null default 'INFO',read_at timestamptz,created_at timestamptz not null default now());
+create table if not exists processed_events(event_id text primary key,processed_at timestamptz not null default now());
