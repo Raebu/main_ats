@@ -1,0 +1,2 @@
+import{api}from"../../lib/api";import TalentPoolsWorkspace from"../../components/TalentPoolsWorkspace";
+export default async function Page(){const pools=await api("/v1/talent-pools")||[];return <><div className="pageHeader"><div><h1>Talent pools & rediscovery</h1><p>Manage reusable talent communities, health, automatic suggestions and re-engagement.</p></div></div><TalentPoolsWorkspace initialPools={pools}/></>}
