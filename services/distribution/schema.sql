@@ -1,0 +1,2 @@
+create table if not exists publications(id text primary key,tenant_id text not null,job_id text not null,destination text not null,status text not null,external_reference text,last_error text,last_attempt_at timestamptz,last_success_at timestamptz,unique(tenant_id,job_id,destination));
+create table if not exists processed_events(event_id text primary key,processed_at timestamptz not null default now());
