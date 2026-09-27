@@ -20,7 +20,7 @@ async function hydrate(tenantId:string,correlationId:string,applicationId:string
 }
 async function requiredApprovals(tenantId:string,organisationId?:string|null){
  const{rows}=await pool.query("select approval_type,condition from offer_approval_rules where tenant_id=$1 and active=true and required=true and (organisation_id is null or organisation_id=$2) order by organisation_id nulls first,approval_type",[tenantId,organisationId||null]);
- return[...new Set(rows.map((r:any)=>r.approval_type))];
+ const configured=[...new Set(rows.map((r:any)=>r.approval_type))];return configured.length?configured:["HIRING_MANAGER","FINANCE"];
 }
 function amount(comp:any){const raw=comp?.salary??comp?.amount??comp?.baseSalary;const n=Number(raw);return Number.isFinite(n)?n:null;}
 
