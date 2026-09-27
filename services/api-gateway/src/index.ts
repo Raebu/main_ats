@@ -1,5 +1,5 @@
-import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{requiredPermission,hasPermission}from"@raeburn/policy";
-const app=new Hono(),IDENTITY=process.env.IDENTITY_URL||"http://localhost:4109";
+import{createHash,randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{requiredPermission,hasPermission}from"@raeburn/policy";
+const app=new Hono(),IDENTITY=process.env.IDENTITY_URL||"http://localhost:4109",AUDIT=process.env.AUDIT_URL||"http://localhost:4111";
 const rate=new Map<string,{count:number;reset:number}>();
 const maxBody=Number(process.env.MAX_REQUEST_BYTES||12*1024*1024);
 const allowedOrigins=(process.env.CORS_ORIGINS||"https://theraeburngroup.com,https://talent.theraeburngroup.com").split(",").map(x=>x.trim()).filter(Boolean);
@@ -24,7 +24,7 @@ app.get("/health",c=>c.json({service:"api-gateway",status:"healthy",time:new Dat
 app.get("/health/services",async c=>{const auth=c.req.header("authorization");if(!auth)return c.json({code:"UNAUTHENTICATED",message:"Authentication required"},401);const verify=await fetch(IDENTITY+"/v1/identity/introspect",{headers:{authorization:auth}});if(!verify.ok)return c.json({code:"UNAUTHENTICATED",message:"Invalid or expired session"},401);const checks=await Promise.all(routes.map(async([prefix,base])=>{try{const r=await fetch(base+"/health",{signal:AbortSignal.timeout(2500)});const body=await r.json().catch(()=>({}));return{route:prefix,status:r.ok?"healthy":"degraded",service:(body as any).service||base};}catch{return{route:prefix,status:"down",service:base};}}));return c.json({service:"api-gateway",status:checks.every(x=>x.status==="healthy")?"healthy":"degraded",checks,time:new Date().toISOString()});});
 
 app.all("/v1/*",async c=>{
- const url=new URL(c.req.url),correlationId=c.req.header("x-correlation-id")||randomUUID();
+ const requestStarted=Date.now(),url=new URL(c.req.url),correlationId=c.req.header("x-correlation-id")||randomUUID();
  let tenantId=c.req.header("x-tenant-id")||process.env.DEFAULT_TENANT_ID||"tenant_raeburn_group";
  let claims:any=null;
 
@@ -55,6 +55,10 @@ app.all("/v1/*",async c=>{
  const response=await fetch(target,{...init,signal:AbortSignal.timeout(Number(process.env.UPSTREAM_TIMEOUT_MS||15000))});
  const outHeaders=new Headers(response.headers);
  outHeaders.set("x-correlation-id",correlationId);
+ if(claims&&!["GET","HEAD","OPTIONS"].includes(c.req.method)){
+   const ip=c.req.header("cf-connecting-ip")||c.req.header("x-forwarded-for")?.split(",")[0]?.trim()||"unknown",ipHash=createHash("sha256").update(ip).digest("hex");
+   fetch(AUDIT+"/internal/requests",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({tenantId,actor:claims.sub||null,actorEmail:claims.email||null,method:c.req.method,path:url.pathname,status:response.status,durationMs:Date.now()-requestStarted,correlationId,ipHash,userAgent:c.req.header("user-agent")||null})}).catch(()=>{});
+ }
  return new Response(response.body,{status:response.status,headers:outHeaders});
 });
 
