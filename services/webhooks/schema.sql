@@ -1,0 +1,1 @@
+create table if not exists webhook_receipts(id text primary key,tenant_id text not null,provider text not null,external_id text,signature_valid boolean not null,headers jsonb not null,payload jsonb not null,received_at timestamptz not null default now(),unique(provider,external_id));
