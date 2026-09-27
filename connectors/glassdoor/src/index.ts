@@ -1,0 +1,1 @@
+import{httpJobBoardConnector}from"@raeburn/connectors";export const glassdoorConnector=httpJobBoardConnector({name:"glassdoor",displayName:"Glassdoor",endpointEnv:"GLASSDOOR_API_BASE_URL",apiKeyEnv:"GLASSDOOR_API_KEY"});
