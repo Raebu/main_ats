@@ -1,0 +1,1 @@
+create table if not exists assessments(id text primary key,tenant_id text not null,application_id text not null,type text not null,title text not null,instructions text,status text not null default 'CREATED',evidence jsonb not null default '{}',created_at timestamptz not null default now());
