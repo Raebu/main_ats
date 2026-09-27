@@ -49,3 +49,18 @@ create table if not exists salary_bands(
  min_amount numeric,max_amount numeric,currency text not null default 'GBP',period text not null default 'YEAR',
  active boolean not null default true,created_at timestamptz not null default now()
 );
+
+create table if not exists hiring_plans(
+ id text primary key,tenant_id text not null,organisation_id text not null,name text not null,period_start date,period_end date,
+ budget numeric,currency text not null default 'GBP',status text not null default 'DRAFT',created_by text,
+ created_at timestamptz not null default now(),updated_at timestamptz not null default now()
+);
+create table if not exists hiring_plan_items(
+ id text primary key,tenant_id text not null,hiring_plan_id text not null,department text,title text not null,
+ planned_openings int not null default 1,approved_openings int not null default 0,forecast_date date,
+ estimated_cost numeric,dependencies jsonb not null default '[]',requisition_id text,actual_hires int not null default 0
+);
+create table if not exists workforce_scenarios(
+ id text primary key,tenant_id text not null,hiring_plan_id text,name text not null,assumptions jsonb not null default '{}',
+ results jsonb not null default '{}',created_at timestamptz not null default now()
+);
