@@ -66,3 +66,34 @@ create table if not exists workflow_automation_runs(
  result text not null,created_at timestamptz not null default now(),
  unique(tenant_id,rule_type,rule_id,application_id)
 );
+
+
+-- Stage 8 decision evidence and fairness controls
+create table if not exists decision_reason_taxonomy(
+ id text primary key,tenant_id text not null,code text not null,label text not null,decision_type text not null,
+ stages jsonb not null default '[]',requires_evidence boolean not null default true,active boolean not null default true,
+ guidance text,created_at timestamptz not null default now(),updated_at timestamptz not null default now(),
+ unique(tenant_id,code)
+);
+create table if not exists decision_evidence(
+ id text primary key,tenant_id text not null,application_id text not null,from_stage text,to_stage text not null,
+ reason_code text not null,rationale text not null,evidence jsonb not null default '[]',actor text,
+ created_at timestamptz not null default now()
+);
+create index if not exists decision_evidence_application on decision_evidence(tenant_id,application_id,created_at desc);
+
+create table if not exists blind_review_policies(
+ id text primary key,tenant_id text not null,scope_type text not null default 'TENANT',scope_id text not null,
+ stages jsonb not null default '[]',hide_fields jsonb not null default '["name","email","telephone","photo","linkedin"]',
+ enabled boolean not null default false,created_at timestamptz not null default now(),updated_at timestamptz not null default now(),
+ unique(tenant_id,scope_type,scope_id)
+);
+create table if not exists consistency_audits(
+ id text primary key,tenant_id text not null,scope jsonb not null default '{}',period_start timestamptz,period_end timestamptz,
+ findings jsonb not null default '{}',reviewed_by text,status text not null default 'OPEN',
+ created_at timestamptz not null default now(),reviewed_at timestamptz
+);
+create table if not exists fairness_monitor_runs(
+ id text primary key,tenant_id text not null,metric text not null,cohorts jsonb not null,minimum_group_size int not null default 5,
+ findings jsonb not null default '{}',methodology text not null,created_by text,created_at timestamptz not null default now()
+);
