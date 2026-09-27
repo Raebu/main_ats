@@ -43,3 +43,7 @@ create table if not exists candidate_campaign_schedules(
 );
 
 alter table candidate_job_alerts add column if not exists manage_token text unique;
+
+
+alter table applications add column if not exists organisation_id text;
+create index if not exists applications_org on applications(tenant_id,organisation_id,created_at desc);
