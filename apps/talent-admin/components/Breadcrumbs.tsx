@@ -1,0 +1,1 @@
+export default function Breadcrumbs({items}:{items:{label:string;href?:string}[]}){return <nav className="breadcrumbs" aria-label="Breadcrumb">{items.map((x,i)=><span key={x.label}>{i>0&&<span aria-hidden="true"> / </span>}{x.href?<a href={x.href}>{x.label}</a>:<span aria-current="page">{x.label}</span>}</span>)}</nav>}
