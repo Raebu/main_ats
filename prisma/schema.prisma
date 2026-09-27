@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum JobStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+  ARCHIVED
+}
+
+enum ApplicationStage {
+  NEW
+  SCREENING
+  REVIEW
+  SHORTLIST
+  INTERVIEW
+  FINAL_INTERVIEW
+  OFFER
+  HIRED
+  REJECTED
+  WITHDRAWN
+  ON_HOLD
+  TALENT_POOL
+}
+
+model Job {
+  id               String            @id @default(cuid())
+  reference        String            @unique
+  slug             String            @unique
+  title            String
+  employer         String            @default("The Raeburn Group")
+  operatingHome    String?
+  department       String?
+  location         String
+  workplaceType    String            @default("Flexible")
+  employmentType   String            @default("OTHER")
+  engagement       String?
+  summary          String
+  description      String
+  requirements     String
+  benefits         String?
+  salaryText       String?
+  currency         String?           @default("GBP")
+  directApply      Boolean           @default(true)
+  status           JobStatus         @default(DRAFT)
+  datePosted       DateTime?
+  validThrough     DateTime?
+  audiences        String[]          @default([])
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  applications     Application[]
+  questions        JobQuestion[]
+  distributions    JobDistribution[]
+  versions         JobVersion[]
+}
+
+model JobVersion {
+  id          String   @id @default(cuid())
+  jobId       String
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  snapshot    Json
+  createdAt   DateTime @default(now())
+}
+
+model JobQuestion {
+  id          String  @id @default(cuid())
+  jobId       String
+  job         Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  prompt      String
+  required    Boolean @default(false)
+  sortOrder   Int     @default(0)
+  applications ApplicationAnswer[]
+}
+
+model Candidate {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  name            String
+  telephone       String?
+  location        String?
+  linkedIn        String?
+  portfolio       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  applications    Application[]
+  documents       CandidateDocument[]
+  notes           CandidateNote[]
+}
+
+model CandidateDocument {
+  id          String    @id @default(cuid())
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  type        String
+  fileName    String
+  storageUrl  String
+  createdAt   DateTime  @default(now())
+}
+
+model Application {
+  id                    String           @id @default(cuid())
+  candidateId           String
+  candidate             Candidate        @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  jobId                 String
+  job                    Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  stage                  ApplicationStage @default(NEW)
+  coverNote              String?
+  rightToWork            String?
+  availability           String?
+  adjustmentRequested    Boolean          @default(false)
+  adjustmentDetails      String?
+  privacyNoticeVersion   String            @default("2026-09")
+  privacyAcceptedAt      DateTime
+  acquisitionSource      String?
+  gateway                String?
+  campaign               String?
+  utmSource              String?
+  utmMedium              String?
+  utmCampaign            String?
+  utmContent             String?
+  utmTerm                String?
+  landingPage            String?
+  referrer               String?
+  firstTouch             String?
+  lastTouch              String?
+  applicationTouch       String?
+  referralCode           String?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  answers                ApplicationAnswer[]
+  stageHistory           ApplicationStageHistory[]
+  communications         Communication[]
+
+  @@unique([candidateId, jobId])
+  @@index([jobId, stage])
+  @@index([createdAt])
+}
+
+model ApplicationAnswer {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  questionId    String
+  question      JobQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answer        String
+}
+
+model ApplicationStageHistory {
+  id            String           @id @default(cuid())
+  applicationId String
+  application   Application      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  fromStage     ApplicationStage?
+  toStage       ApplicationStage
+  changedBy     String?
+  createdAt     DateTime         @default(now())
+}
+
+model CandidateNote {
+  id          String    @id @default(cuid())
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  body        String
+  author      String?
+  createdAt   DateTime @default(now())
+}
+
+model Communication {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  direction     String
+  channel       String      @default("email")
+  subject       String?
+  body          String
+  status        String
+  createdAt     DateTime @default(now())
+}
+
+model JobDistribution {
+  id          String   @id @default(cuid())
+  jobId       String
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  destination String
+  mode        String
+  status      String
+  externalId  String?
+  lastAttempt DateTime?
+  lastSuccess DateTime?
+  error       String?
+
+  @@unique([jobId, destination])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actor      String?
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+}
