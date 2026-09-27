@@ -1,3 +1,4 @@
 create table if not exists application_workflows(application_id text not null,tenant_id text not null,stage text not null,updated_at timestamptz not null default now(),primary key(tenant_id,application_id));
 create table if not exists stage_history(id text primary key,tenant_id text not null,application_id text not null,from_stage text,to_stage text not null,actor text,occurred_at timestamptz not null default now());
 create table if not exists outbox_events(id text primary key,event_type text not null,payload jsonb not null,created_at timestamptz not null default now(),published_at timestamptz,retry_count int not null default 0,last_error text);
+create table if not exists processed_events(event_id text primary key,processed_at timestamptz not null default now());
