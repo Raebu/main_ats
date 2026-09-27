@@ -14,6 +14,8 @@ const isPublic=(method:string,path:string)=>
  (method==="GET"&&path.startsWith("/v1/distribution/feeds/"))||
  (method==="POST"&&(path==="/v1/applications"||path==="/v1/applications/job-alerts"||path==="/v1/applications/job-alerts/unsubscribe"))||(path.startsWith("/v1/applications/portal/"))||
  (method==="POST"&&path==="/v1/attribution/touchpoints")||
+ (path.startsWith("/v1/campaigns/public/")&&["GET","POST"].includes(method))||
+ (path.startsWith("/v1/organisations/vendor-portal/")&&["GET","POST"].includes(method))||
  (method==="POST"&&path==="/v1/documents/upload")||
  (method==="POST"&&/^\/v1\/documents\/[^/]+\/complete$/.test(path))||
  (method==="POST"&&path==="/v1/identity/login");

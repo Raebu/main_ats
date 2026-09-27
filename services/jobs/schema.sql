@@ -67,3 +67,11 @@ create table if not exists workforce_scenarios(
 
 alter table jobs add column if not exists hiring_manager_user_id text;
 create index if not exists jobs_hiring_manager on jobs(tenant_id,hiring_manager_user_id,status);
+
+
+create table if not exists workforce_capacity(
+ id text primary key,tenant_id text not null,organisation_id text not null,department text,period_start date,period_end date,
+ current_headcount int not null default 0,target_headcount int not null default 0,planned_hires int not null default 0,planned_exits int not null default 0,
+ annualised_cost numeric,currency text not null default 'GBP',notes text,created_at timestamptz not null default now()
+);
+create index if not exists workforce_capacity_scope on workforce_capacity(tenant_id,organisation_id,department,period_start);

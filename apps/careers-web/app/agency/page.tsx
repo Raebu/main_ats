@@ -1,0 +1,1 @@
+import AgencyPortal from"../../components/AgencyPortal";export default function Page(){return <main className="wrap"><small>RAEBURN TALENT · SUPPLIER PORTAL</small><h1>Agency portal</h1><p>Approved recruitment partners can review assigned vacancies and submit candidates using their scoped supplier access token.</p><AgencyPortal/></main>}
