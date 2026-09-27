@@ -4,7 +4,7 @@ import{Hono}from"hono";
 import{SignJWT}from"jose";
 import{CreateApplicationContract}from"@raeburn/contracts";
 import{createEvent,Events}from"@raeburn/events";
-import{context,health,pool,withTransaction,writeOutbox}from"@raeburn/service-kit";
+import{context,health,pool,serviceAuthHeaders,withTransaction,writeOutbox}from"@raeburn/service-kit";
 
 const app=new Hono();
 const CANDIDATES=process.env.CANDIDATES_URL||"http://localhost:4102";
@@ -33,7 +33,7 @@ app.get("/v1/applications",async c=>{
 
 app.post("/v1/applications",async c=>{
  const x=context(c.req.raw.headers),body=CreateApplicationContract.parse(await c.req.json());
- const headers={"content-type":"application/json","x-tenant-id":x.tenantId,"x-correlation-id":x.correlationId};
+ const headers=serviceAuthHeaders({"content-type":"application/json","x-tenant-id":x.tenantId,"x-correlation-id":x.correlationId});
  const jobRes=await fetch(JOBS+"/v1/jobs/"+body.jobId,{headers});
  if(!jobRes.ok)return c.json({code:"JOB_NOT_AVAILABLE",message:"Vacancy not available",correlationId:x.correlationId},409);
  const job:any=await jobRes.json();
@@ -67,7 +67,7 @@ app.get("/v1/applications/portal/session",async c=>{
  if(!session)return c.json({code:"UNAUTHENTICATED",message:"Candidate session expired or invalid"},401);
  const application=(await pool.query("select * from applications where tenant_id=$1 and id=$2",[session.tenant_id,session.application_id])).rows[0];
  if(!application)return c.json({code:"NOT_FOUND",message:"Application not found"},404);
- const headers={"x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID()};
+ const headers=serviceAuthHeaders({"x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID()});
  const[jobRes,workflowRes,interviewRes,assessmentRes,offerRes,candidateRes]=await Promise.all([
    fetch(JOBS+"/v1/jobs/"+application.job_id,{headers}),
    fetch(WORKFLOW+"/v1/workflow/"+application.id,{headers}),
@@ -93,7 +93,7 @@ app.post("/v1/applications/portal/withdraw",async c=>{
  if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
  const session=await portalSession(token);
  if(!session)return c.json({code:"UNAUTHENTICATED",message:"Candidate session expired or invalid"},401);
- const r=await fetch(WORKFLOW+"/v1/workflow/"+session.application_id+"/stage",{method:"PATCH",headers:{"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id},body:JSON.stringify({stage:"WITHDRAWN"})});
+ const r=await fetch(WORKFLOW+"/v1/workflow/"+session.application_id+"/stage",{method:"PATCH",headers:serviceAuthHeaders({"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id}),body:JSON.stringify({stage:"WITHDRAWN"})});
  if(!r.ok)return c.json(await r.json().catch(()=>({code:"WITHDRAW_FAILED",message:"Could not withdraw application"})),r.status as any);
  return c.json({ok:true,applicationId:session.application_id,status:"WITHDRAWN"});
 });
@@ -112,7 +112,7 @@ app.post("/v1/applications/portal/privacy-request",async c=>{
 app.post("/v1/applications/portal/interviews/:id/reschedule",async c=>{
  const token=c.req.header("authorization")?.replace(/^Bearer\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
  const session=await portalSession(token);if(!session)return c.json({code:"UNAUTHENTICATED",message:"Candidate session expired or invalid"},401);
- const h={"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id};
+ const h=serviceAuthHeaders({"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id});
  const list=await fetch(INTERVIEWS+"/v1/interviews?applicationId="+session.application_id,{headers:h}),items:any[]=list.ok?await list.json():[];if(!items.some(i=>i.id===c.req.param("id")))return c.json({code:"FORBIDDEN",message:"Interview does not belong to this application"},403);
  const r=await fetch(INTERVIEWS+"/v1/interviews/"+c.req.param("id")+"/reschedule-request",{method:"POST",headers:h,body:JSON.stringify(await c.req.json())});return c.json(await r.json(),r.status as any);
 });
@@ -120,7 +120,7 @@ app.post("/v1/applications/portal/interviews/:id/reschedule",async c=>{
 app.post("/v1/applications/portal/assessments/:id/submit",async c=>{
  const token=c.req.header("authorization")?.replace(/^Bearer\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
  const session=await portalSession(token);if(!session)return c.json({code:"UNAUTHENTICATED",message:"Candidate session expired or invalid"},401);
- const h={"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id};
+ const h=serviceAuthHeaders({"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id});
  const list=await fetch(ASSESSMENTS+"/v1/assessments?applicationId="+session.application_id,{headers:h}),items:any[]=list.ok?await list.json():[];if(!items.some(i=>i.id===c.req.param("id")))return c.json({code:"FORBIDDEN",message:"Assessment does not belong to this application"},403);
  const r=await fetch(ASSESSMENTS+"/v1/assessments/"+c.req.param("id")+"/submit",{method:"POST",headers:h,body:JSON.stringify(await c.req.json())});return c.json(await r.json(),r.status as any);
 });
@@ -128,7 +128,7 @@ app.post("/v1/applications/portal/assessments/:id/submit",async c=>{
 app.post("/v1/applications/portal/assessments/:id/extension",async c=>{
  const token=c.req.header("authorization")?.replace(/^Bearer\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
  const session=await portalSession(token);if(!session)return c.json({code:"UNAUTHENTICATED",message:"Candidate session expired or invalid"},401);
- const h={"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id};
+ const h=serviceAuthHeaders({"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id});
  const list=await fetch(ASSESSMENTS+"/v1/assessments?applicationId="+session.application_id,{headers:h}),items:any[]=list.ok?await list.json():[];if(!items.some(i=>i.id===c.req.param("id")))return c.json({code:"FORBIDDEN",message:"Assessment does not belong to this application"},403);
  const r=await fetch(ASSESSMENTS+"/v1/assessments/"+c.req.param("id")+"/extensions",{method:"POST",headers:h,body:JSON.stringify(await c.req.json())});return c.json(await r.json(),r.status as any);
 });
@@ -136,7 +136,7 @@ app.post("/v1/applications/portal/assessments/:id/extension",async c=>{
 app.post("/v1/applications/portal/offers/:id/accept",async c=>{
  const token=c.req.header("authorization")?.replace(/^Bearer\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
  const session=await portalSession(token);if(!session)return c.json({code:"UNAUTHENTICATED",message:"Candidate session expired or invalid"},401);
- const h={"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id};
+ const h=serviceAuthHeaders({"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id});
  const list=await fetch(OFFERS+"/v1/offers?applicationId="+session.application_id,{headers:h}),items:any[]=list.ok?await list.json():[];if(!items.some(i=>i.id===c.req.param("id")))return c.json({code:"FORBIDDEN",message:"Offer does not belong to this application"},403);
  const r=await fetch(OFFERS+"/v1/offers/"+c.req.param("id")+"/accept",{method:"POST",headers:h,body:JSON.stringify(await c.req.json())});return c.json(await r.json(),r.status as any);
 });
@@ -144,7 +144,7 @@ app.post("/v1/applications/portal/offers/:id/accept",async c=>{
 app.post("/v1/applications/portal/offers/:id/decline",async c=>{
  const token=c.req.header("authorization")?.replace(/^Bearer\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
  const session=await portalSession(token);if(!session)return c.json({code:"UNAUTHENTICATED",message:"Candidate session expired or invalid"},401);
- const h={"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id};
+ const h=serviceAuthHeaders({"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id});
  const list=await fetch(OFFERS+"/v1/offers?applicationId="+session.application_id,{headers:h}),items:any[]=list.ok?await list.json():[];if(!items.some(i=>i.id===c.req.param("id")))return c.json({code:"FORBIDDEN",message:"Offer does not belong to this application"},403);
  const r=await fetch(OFFERS+"/v1/offers/"+c.req.param("id")+"/decline",{method:"POST",headers:h,body:JSON.stringify(await c.req.json())});return c.json(await r.json(),r.status as any);
 });
@@ -170,7 +170,7 @@ app.put("/v1/applications/portal/preferences",async c=>{
  const{rows}=await pool.query(`insert into candidate_experience_preferences(tenant_id,candidate_id,locale,accessibility_preferences,communication_preferences,alternative_application_preferences,talent_pool_consent,recruitment_marketing_consent,keep_in_touch_consent,consent_updated_at)
  values($1,$2,$3,$4::jsonb,$5::jsonb,$6::jsonb,$7,$8,$9,now())
  on conflict(tenant_id,candidate_id) do update set locale=excluded.locale,accessibility_preferences=excluded.accessibility_preferences,communication_preferences=excluded.communication_preferences,alternative_application_preferences=excluded.alternative_application_preferences,talent_pool_consent=excluded.talent_pool_consent,recruitment_marketing_consent=excluded.recruitment_marketing_consent,keep_in_touch_consent=excluded.keep_in_touch_consent,consent_updated_at=now(),updated_at=now() returning *`,[session.tenant_id,session.candidate_id,b.locale||"en-GB",JSON.stringify(accessibility),JSON.stringify(communication),JSON.stringify(alternative),!!b.talentPoolConsent,!!b.recruitmentMarketingConsent,!!b.keepInTouchConsent]);
- const h={"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id};
+ const h=serviceAuthHeaders({"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id});
  async function scheduleCampaign(campaignType:string,runAt:Date,recurrence:null|"WEEKLY"=null,maxRuns:number|null=null){const existing=(await pool.query("select * from candidate_campaign_schedules where tenant_id=$1 and candidate_id=$2 and campaign_type=$3",[session.tenant_id,session.candidate_id,campaignType])).rows[0];if(existing?.status==="ACTIVE")return;const r=await fetch(SCHEDULER+"/v1/scheduled-actions",{method:"POST",headers:h,body:JSON.stringify({actionType:campaignType,runAt:runAt.toISOString(),payload:{candidateId:session.candidate_id,applicationId:session.application_id},recurrence,timezone:"Europe/London",maxRuns})});if(r.ok){const v:any=await r.json();await pool.query("insert into candidate_campaign_schedules(tenant_id,candidate_id,campaign_type,scheduled_action_id,status) values($1,$2,$3,$4,'ACTIVE') on conflict(tenant_id,candidate_id,campaign_type) do update set scheduled_action_id=excluded.scheduled_action_id,status='ACTIVE',updated_at=now()",[session.tenant_id,session.candidate_id,campaignType,v.id]);}}
  async function cancelCampaign(campaignType:string){const existing=(await pool.query("select * from candidate_campaign_schedules where tenant_id=$1 and candidate_id=$2 and campaign_type=$3 and status='ACTIVE'",[session.tenant_id,session.candidate_id,campaignType])).rows[0];if(!existing)return;await fetch(SCHEDULER+"/v1/scheduled-actions/"+existing.scheduled_action_id,{method:"PATCH",headers:h,body:JSON.stringify({status:"CANCELLED"})}).catch(()=>{});await pool.query("update candidate_campaign_schedules set status='CANCELLED',updated_at=now() where tenant_id=$1 and candidate_id=$2 and campaign_type=$3",[session.tenant_id,session.candidate_id,campaignType]);}
  const now=Date.now();if(b.keepInTouchConsent&&!previous?.keep_in_touch_consent){await scheduleCampaign("candidate_keep_in_touch",new Date(now+30*86400000),"WEEKLY",6);await scheduleCampaign("candidate_reengagement",new Date(now+90*86400000));}else if(!b.keepInTouchConsent&&previous?.keep_in_touch_consent){await cancelCampaign("candidate_keep_in_touch");await cancelCampaign("candidate_reengagement");}
@@ -181,7 +181,7 @@ app.put("/v1/applications/portal/preferences",async c=>{
 app.post("/v1/applications/portal/job-alerts",async c=>{
  const token=c.req.header("authorization")?.replace(/^Bearer\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
  const session=await portalSession(token);if(!session)return c.json({code:"UNAUTHENTICATED",message:"Candidate session expired or invalid"},401);
- const candidateRes=await fetch(CANDIDATES+"/v1/candidates/"+session.candidate_id,{headers:{"x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID()}});if(!candidateRes.ok)return c.json({code:"CANDIDATE_UNAVAILABLE",message:"Candidate profile unavailable"},502);const candidate:any=await candidateRes.json();
+ const candidateRes=await fetch(CANDIDATES+"/v1/candidates/"+session.candidate_id,{headers:serviceAuthHeaders({"x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID()})});if(!candidateRes.ok)return c.json({code:"CANDIDATE_UNAVAILABLE",message:"Candidate profile unavailable"},502);const candidate:any=await candidateRes.json();
  const b=(await c.req.json()) as any,id=randomUUID(),manageToken=randomBytes(24).toString("base64url");await pool.query("insert into candidate_job_alerts(id,tenant_id,candidate_id,email,query,location,department,frequency,locale,manage_token) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",[id,session.tenant_id,session.candidate_id,candidate.email,b.query||null,b.location||null,b.department||null,b.frequency||"INSTANT",b.locale||"en-GB",manageToken]);return c.json({id,status:"ACTIVE"},201);
 });
 app.delete("/v1/applications/portal/job-alerts/:id",async c=>{const token=c.req.header("authorization")?.replace(/^Bearer\s+/i,"");if(!token)return c.json({ok:true});const session=await portalSession(token);if(!session)return c.json({ok:true});await pool.query("update candidate_job_alerts set status='UNSUBSCRIBED',updated_at=now() where tenant_id=$1 and candidate_id=$2 and id=$3",[session.tenant_id,session.candidate_id,c.req.param("id")]);return c.json({ok:true});});
