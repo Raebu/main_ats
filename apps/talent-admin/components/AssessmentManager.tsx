@@ -23,13 +23,12 @@ export default function AssessmentManager({
         fetch("/api/talent/assessments/" + assessment.id + "/extensions"),
         fetch("/api/talent/assessments/" + assessment.id + "/reviews")
       ]);
+      const submissions = submissionsRes.ok ? await submissionsRes.json() : [];
+      const extensions = extensionsRes.ok ? await extensionsRes.json() : [];
+      const reviews = reviewsRes.ok ? await reviewsRes.json() : [];
       setDetail(current => ({
         ...current,
-        [assessment.id]: {
-          submissions: submissionsRes.ok ? await submissionsRes.json() : [],
-          extensions: extensionsRes.ok ? await extensionsRes.json() : [],
-          reviews: reviewsRes.ok ? await reviewsRes.json() : []
-        }
+        [assessment.id]: { submissions, extensions, reviews }
       }));
     }
   }
