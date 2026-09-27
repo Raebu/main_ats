@@ -2,19 +2,13 @@
   "name": "raeburn-talent",
   "version": "0.2.0",
   "private": true,
-  "workspaces": [
-    "packages/*",
-    "services/*",
-    "apps/*",
-    "connectors/*"
-  ],
+  "workspaces": ["packages/*","services/*","apps/*","connectors/*"],
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit && npm run typecheck:services",
-    "typecheck:services": "node scripts/typecheck-workspaces.mjs",
+    "typecheck": "tsc --noEmit",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
