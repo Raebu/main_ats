@@ -1,1 +1,2 @@
 create table if not exists gateway_jobs(tenant_id text not null,gateway_id text not null,job_id text not null,visible boolean not null default true,featured boolean not null default false,priority int not null default 0,primary key(tenant_id,gateway_id,job_id));
+create table if not exists processed_events(event_id text primary key,processed_at timestamptz not null default now());
