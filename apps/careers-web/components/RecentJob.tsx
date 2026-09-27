@@ -1,0 +1,1 @@
+"use client";import{useEffect}from"react";export default function RecentJob({job}:{job:{id:string;slug:string;title:string}}){useEffect(()=>{const key="raeburn_recent_jobs",current=JSON.parse(localStorage.getItem(key)||"[]").filter((x:any)=>x.id!==job.id);localStorage.setItem(key,JSON.stringify([job,...current].slice(0,8)));},[job.id,job.slug,job.title]);return null;}
