@@ -1,4 +1,4 @@
-import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";
+import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{requiredPermission,hasPermission}from"@raeburn/policy";
 const app=new Hono(),IDENTITY=process.env.IDENTITY_URL||"http://localhost:4109";
 const rate=new Map<string,{count:number;reset:number}>();
 const maxBody=Number(process.env.MAX_REQUEST_BYTES||12*1024*1024);
@@ -18,39 +18,6 @@ const isPublic=(method:string,path:string)=>
  (method==="POST"&&/^\/v1\/documents\/[^/]+\/complete$/.test(path))||
  (method==="POST"&&path==="/v1/identity/login");
 
-function requiredPermission(method:string,path:string){
- const write=!["GET","HEAD"].includes(method);
- const rules:[RegExp,string,string?][]=[
-  [/^\/v1\/jobs/,"jobs:read","jobs:write"],
-  [/^\/v1\/candidates/,"candidates:read","candidates:write"],
-  [/^\/v1\/applications/,"applications:read"],
-  [/^\/v1\/workflow/,"workflow:read","workflow:write"],
-  [/^\/v1\/documents/,"documents:read"],
-  [/^\/v1\/communications/,"communications:read"],
-  [/^\/v1\/distribution/,"distribution:read","distribution:write"],
-  [/^\/v1\/identity/,"identity:write","identity:write"],
-  [/^\/v1\/organisations/,"organisations:read","organisations:write"],
-  [/^\/v1\/audit/,"audit:read"],
-  [/^\/v1\/notifications/,"notifications:read","notifications:write"],
-  [/^\/v1\/privacy/,"privacy:read","privacy:write"],
-  [/^\/v1\/interviews/,"interviews:read","interviews:write"],
-  [/^\/v1\/assessments/,"assessments:read","assessments:write"],
-  [/^\/v1\/offers/,"offers:read","offers:write"],
-  [/^\/v1\/talent-pools/,"talent-pools:read","talent-pools:write"],
-  [/^\/v1\/careers-gateways/,"jobs:read","jobs:write"],
-  [/^\/v1\/config/,"config:read","config:write"],
-  [/^\/v1\/flags/,"config:read","config:write"],
-  [/^\/v1\/campaigns/,"campaigns:read","campaigns:write"],
-  [/^\/v1\/hooks/,"integrations:write","integrations:write"],
-  [/^\/v1\/integrations/,"integrations:read","integrations:write"],
-  [/^\/v1\/analytics/,"analytics:read"],
-  [/^\/v1\/search/,"search:read"],
-  [/^\/v1\/intelligence/,"intelligence:use","intelligence:use"],
-  [/^\/v1\/scheduled-actions/,"scheduler:read","scheduler:write"],[/^\/v1\/onboarding/,"onboarding:read","onboarding:write"]
- ];
- for(const [re,read,writePerm] of rules)if(re.test(path))return write?(writePerm||read):read;
- return "platform:access";
-}
 
 app.use("*",async(c,next)=>{const started=Date.now(),origin=c.req.header("origin");c.header("x-content-type-options","nosniff");c.header("x-frame-options","DENY");c.header("referrer-policy","strict-origin-when-cross-origin");c.header("permissions-policy","camera=(), microphone=(), geolocation=()");c.header("content-security-policy","default-src 'none'; frame-ancestors 'none'");if(origin&&allowedOrigins.includes(origin)){c.header("access-control-allow-origin",origin);c.header("access-control-allow-credentials","true");c.header("vary","Origin");}if(c.req.method==="OPTIONS"){c.header("access-control-allow-methods","GET,POST,PATCH,PUT,DELETE,OPTIONS");c.header("access-control-allow-headers","authorization,content-type,x-correlation-id,x-tenant-id");return c.body(null,204);}const len=Number(c.req.header("content-length")||0);if(len>maxBody)return c.json({code:"PAYLOAD_TOO_LARGE",message:"Request exceeds maximum allowed size"},413);const ip=c.req.header("cf-connecting-ip")||c.req.header("x-forwarded-for")?.split(",")[0]?.trim()||"unknown";const publicRoute=isPublic(c.req.method,new URL(c.req.url).pathname);const limit=publicRoute?Number(process.env.PUBLIC_RATE_LIMIT_PER_MINUTE||120):Number(process.env.AUTH_RATE_LIMIT_PER_MINUTE||600);if(!rateAllowed(ip+":"+new URL(c.req.url).pathname,limit))return c.json({code:"RATE_LIMITED",message:"Too many requests"},429);await next();c.header("server-timing","gateway;dur="+(Date.now()-started));});
 app.get("/health",c=>c.json({service:"api-gateway",status:"healthy",time:new Date().toISOString()}));
@@ -70,7 +37,7 @@ app.all("/v1/*",async c=>{
    tenantId=claims.tenantId||tenantId;
    const permissions:string[]=Array.isArray(claims.permissions)?claims.permissions:[];
    const needed=requiredPermission(c.req.method,url.pathname);
-   if(!permissions.includes("*")&&!permissions.includes(needed))
+   if(!hasPermission(permissions,needed))
      return c.json({code:"FORBIDDEN",message:"Permission required: "+needed,correlationId},403);
  }
 
