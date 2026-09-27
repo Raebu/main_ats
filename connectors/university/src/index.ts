@@ -1,0 +1,1 @@
+import{httpJobBoardConnector}from"@raeburn/connectors";export const universityConnector=httpJobBoardConnector({name:"university",displayName:"University careers",endpointEnv:"UNIVERSITY_JOBS_API_BASE_URL",apiKeyEnv:"UNIVERSITY_JOBS_API_KEY"});
