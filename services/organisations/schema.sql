@@ -31,3 +31,13 @@ create table if not exists vendor_invoices(
 create table if not exists departments(id text primary key,tenant_id text not null,organisation_id text not null,name text not null,slug text not null,parent_id text,active boolean not null default true,unique(tenant_id,organisation_id,slug));
 create table if not exists teams(id text primary key,tenant_id text not null,organisation_id text not null,department_id text,name text not null,manager_user_id text,active boolean not null default true);
 create table if not exists locations(id text primary key,tenant_id text not null,organisation_id text,name text not null,country_code text not null default 'GB',timezone text not null default 'Europe/London',address jsonb not null default '{}',remote_allowed boolean not null default true,active boolean not null default true);
+
+
+create table if not exists engagement_compliance_reviews(
+ id text primary key,tenant_id text not null,subject_type text not null check(subject_type in ('AGENCY','CONTRACTOR')),
+ subject_id text not null,review_type text not null,status text not null default 'OPEN',
+ checks jsonb not null default '[]',evidence jsonb not null default '[]',findings jsonb not null default '{}',
+ reviewer text,decision text,decision_reason text,review_due_at timestamptz,
+ created_at timestamptz not null default now(),decided_at timestamptz,updated_at timestamptz not null default now()
+);
+create index if not exists engagement_compliance_review_subject on engagement_compliance_reviews(tenant_id,subject_type,subject_id,created_at desc);
