@@ -1,0 +1,1 @@
+import{httpJobBoardConnector}from"@raeburn/connectors";export const reedConnector=httpJobBoardConnector({name:"reed",displayName:"Reed",endpointEnv:"REED_API_BASE_URL",apiKeyEnv:"REED_API_KEY"});
