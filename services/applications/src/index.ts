@@ -75,7 +75,11 @@ app.get("/v1/applications/portal/session",async c=>{
  ]);
  const offers:any[]=offerRes.ok?await offerRes.json():[];
  const offerViews=await Promise.all(offers.filter((o:any)=>["ISSUED","ACCEPTED","DECLINED","EXPIRED"].includes(o.status)).map(async(o:any)=>{const d=await fetch(OFFERS+"/v1/offers/"+o.id+"/documents",{headers});return{...o,documents:d.ok?await d.json():[]};}));
- return c.json({application:map(application),job:jobRes.ok?await jobRes.json():null,workflow:workflowRes.ok?await workflowRes.json():null,interviews:interviewRes.ok?await interviewRes.json():[],assessments:assessmentRes.ok?await assessmentRes.json():[],offers:offerViews,sessionExpiresAt:session.expires_at});
+ const interviewRows:any[]=interviewRes.ok?await interviewRes.json():[],assessmentRows:any[]=assessmentRes.ok?await assessmentRes.json():[];
+ const safeInterviews=interviewRows.map(i=>({id:i.id,round:i.round,status:i.status,starts_at:i.starts_at,ends_at:i.ends_at,meeting_url:i.meeting_url,reschedule_status:i.reschedule_status}));
+ const safeAssessments=assessmentRows.map(a=>({id:a.id,type:a.type,title:a.title,instructions:a.instructions,status:a.status,due_at:a.due_at,extension_status:a.extension_status,candidate_feedback:a.candidate_feedback,feedback_visible_at:a.feedback_visible_at,template_version:a.template_version}));
+ const safeOffers=offerViews.map((o:any)=>({id:o.id,status:o.status,version:o.version,compensation:o.compensation,equity:o.equity,conditions:o.conditions,start_date:o.start_date,probation:o.probation,benefits:o.benefits,expires_at:o.expires_at,accepted_at:o.accepted_at,declined_at:o.declined_at,decline_reason:o.decline_reason,documents:(o.documents||[]).map((d:any)=>({id:d.id,document_type:d.document_type,version:d.version,title:d.title,content:d.content,content_hash:d.content_hash}))}));
+ return c.json({application:map(application),job:jobRes.ok?await jobRes.json():null,workflow:workflowRes.ok?await workflowRes.json():null,interviews:safeInterviews,assessments:safeAssessments,offers:safeOffers,sessionExpiresAt:session.expires_at});
 });
 
 app.post("/v1/applications/portal/withdraw",async c=>{
