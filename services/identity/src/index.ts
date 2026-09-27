@@ -1,156 +1,62 @@
-import { randomUUID } from "node:crypto";
-import bcrypt from "bcryptjs";
-import { serve } from "@hono/node-server";
-import { Hono } from "hono";
-import { SignJWT, jwtVerify } from "jose";
-import { z } from "zod";
-import { health, pool } from "@raeburn/service-kit";
+import{createCipheriv,createDecipheriv,createHash,createHmac,randomBytes,randomUUID,timingSafeEqual}from"node:crypto";
+import bcrypt from"bcryptjs";
+import{serve}from"@hono/node-server";
+import{Hono}from"hono";
+import{SignJWT,jwtVerify}from"jose";
+import{z}from"zod";
+import{health,pool}from"@raeburn/service-kit";
 
-const app = new Hono();
-const secret = () => new TextEncoder().encode(process.env.AUTH_SECRET || "change-me");
-const tenant = () => process.env.DEFAULT_TENANT_ID || "tenant_raeburn_group";
+const app=new Hono();
+const secret=()=>new TextEncoder().encode(process.env.AUTH_SECRET||"change-me");
+const tenant=()=>process.env.DEFAULT_TENANT_ID||"tenant_raeburn_group";
+const mfaKey=()=>createHash("sha256").update(process.env.MFA_ENCRYPTION_KEY||process.env.AUTH_SECRET||"change-me").digest();
+const sha=(v:string)=>createHash("sha256").update(v).digest("hex");
 
-const ROLE_DEFAULTS: Record<string,string[]> = {
-  PLATFORM_ADMIN:["*"],
-  RECRUITMENT_ADMIN:[
-    "jobs:read","jobs:write","candidates:read","candidates:write","applications:read",
-    "workflow:read","workflow:write","documents:read","communications:read","distribution:read",
-    "organisations:read","notifications:read","privacy:read","privacy:write","interviews:read",
-    "interviews:write","assessments:read","assessments:write","offers:read","offers:write",
-    "talent-pools:read","talent-pools:write","campaigns:read","campaigns:write","analytics:read",
-    "search:read","intelligence:use","onboarding:read","onboarding:write","audit:read","identity:write","onboarding:read","onboarding:write"
-  ],
-  RECRUITER:[
-    "jobs:read","jobs:write","candidates:read","candidates:write","applications:read",
-    "workflow:read","workflow:write","documents:read","communications:read","distribution:read",
-    "notifications:read","interviews:read","interviews:write","assessments:read","assessments:write",
-    "offers:read","offers:write","talent-pools:read","talent-pools:write","analytics:read","search:read",
-    "intelligence:use"
-  ],
-  HIRING_MANAGER:[
-    "jobs:read","candidates:read","applications:read","workflow:read","workflow:write",
-    "documents:read","communications:read","interviews:read","interviews:write",
-    "assessments:read","assessments:write","offers:read","analytics:read","search:read","onboarding:read"
-  ],
-  VIEWER:[
-    "jobs:read","candidates:read","applications:read","workflow:read","communications:read",
-    "interviews:read","assessments:read","offers:read","talent-pools:read","analytics:read","search:read","onboarding:read"
-  ]
+const ROLE_DEFAULTS:Record<string,string[]>={
+ PLATFORM_ADMIN:["*"],
+ RECRUITMENT_ADMIN:["jobs:read","jobs:write","candidates:read","candidates:write","applications:read","workflow:read","workflow:write","documents:read","communications:read","distribution:read","organisations:read","organisations:write","notifications:read","notifications:write","privacy:read","privacy:write","interviews:read","interviews:write","assessments:read","assessments:write","offers:read","offers:write","talent-pools:read","talent-pools:write","campaigns:read","campaigns:write","analytics:read","search:read","intelligence:use","audit:read","identity:write","integrations:read","integrations:write","config:read","config:write","scheduler:read","scheduler:write","onboarding:read","onboarding:write"],
+ RECRUITER:["jobs:read","jobs:write","candidates:read","candidates:write","applications:read","workflow:read","workflow:write","documents:read","communications:read","distribution:read","notifications:read","interviews:read","interviews:write","assessments:read","assessments:write","offers:read","offers:write","talent-pools:read","talent-pools:write","analytics:read","search:read","intelligence:use","onboarding:read","onboarding:write"],
+ HIRING_MANAGER:["jobs:read","candidates:read","applications:read","workflow:read","workflow:write","documents:read","communications:read","interviews:read","interviews:write","assessments:read","assessments:write","offers:read","analytics:read","search:read","onboarding:read"],
+ VIEWER:["jobs:read","candidates:read","applications:read","workflow:read","communications:read","interviews:read","assessments:read","offers:read","talent-pools:read","analytics:read","search:read","onboarding:read"]
 };
 
-const Login = z.object({email:z.string().email(),password:z.string().min(1)});
-const CreateUser = z.object({
-  email:z.string().email(),
-  displayName:z.string().min(2),
-  password:z.string().min(12),
-  role:z.enum(["PLATFORM_ADMIN","RECRUITMENT_ADMIN","RECRUITER","HIRING_MANAGER","VIEWER"]),
-  organisationId:z.string().default("org_raeburn_group"),
-  permissions:z.array(z.string()).optional()
-});
+const Login=z.object({email:z.string().email(),password:z.string().min(1)});
+const CreateUser=z.object({email:z.string().email(),displayName:z.string().min(2),password:z.string().min(12),role:z.enum(["PLATFORM_ADMIN","RECRUITMENT_ADMIN","RECRUITER","HIRING_MANAGER","VIEWER"]),organisationId:z.string().default("org_raeburn_group"),permissions:z.array(z.string()).optional()});
 
-async function issueToken(user:{id:string;email:string;displayName:string}, memberships:any[]) {
-  const permissions = [...new Set(memberships.flatMap(m => Array.isArray(m.permissions) ? m.permissions : []))];
-  const roles = memberships.map(m=>m.role);
-  return new SignJWT({
-    sub:user.id,
-    email:user.email,
-    displayName:user.displayName,
-    tenantId:tenant(),
-    roles,
-    permissions
-  }).setProtectedHeader({alg:"HS256"}).setIssuedAt().setExpirationTime("12h").sign(secret());
-}
+function encrypt(value:string){const iv=randomBytes(12),cipher=createCipheriv("aes-256-gcm",mfaKey(),iv),enc=Buffer.concat([cipher.update(value,"utf8"),cipher.final()]),tag=cipher.getAuthTag();return Buffer.concat([iv,tag,enc]).toString("base64url");}
+function decrypt(value:string){const b=Buffer.from(value,"base64url"),iv=b.subarray(0,12),tag=b.subarray(12,28),data=b.subarray(28),dec=createDecipheriv("aes-256-gcm",mfaKey(),iv);dec.setAuthTag(tag);return Buffer.concat([dec.update(data),dec.final()]).toString("utf8");}
+const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+function base32Encode(buf:Buffer){let bits="",out="";for(const n of buf)bits+=n.toString(2).padStart(8,"0");for(let i=0;i<bits.length;i+=5)out+=alphabet[parseInt(bits.slice(i,i+5).padEnd(5,"0"),2)];return out;}
+function base32Decode(s:string){let bits="";for(const c of s.replace(/=+$/,"").toUpperCase()){const n=alphabet.indexOf(c);if(n<0)continue;bits+=n.toString(2).padStart(5,"0");}const out=[];for(let i=0;i+8<=bits.length;i+=8)out.push(parseInt(bits.slice(i,i+8),2));return Buffer.from(out);}
+function totp(secretB32:string,offset=0){const counter=Math.floor(Date.now()/30000)+offset,b=Buffer.alloc(8);b.writeBigUInt64BE(BigInt(counter));const h=createHmac("sha1",base32Decode(secretB32)).update(b).digest(),o=h[h.length-1]&15,n=(h.readUInt32BE(o)&0x7fffffff)%1000000;return String(n).padStart(6,"0");}
+function verifyTotp(secretB32:string,code:string){for(const o of[-1,0,1]){const expected=Buffer.from(totp(secretB32,o)),actual=Buffer.from(code.padStart(6,"0"));if(expected.length===actual.length&&timingSafeEqual(expected,actual))return true;}return false;}
 
-async function verifyRequest(auth?:string) {
-  const token = auth?.replace(/^Bearer\s+/i,"");
-  if (!token) return null;
-  try { return (await jwtVerify(token, secret())).payload; } catch { return null; }
-}
+async function memberships(userId:string){return(await pool.query("select role,permissions,organisation_id from memberships where tenant_id=$1 and user_id=$2",[tenant(),userId])).rows;}
+async function issueSession(user:{id:string;email:string;displayName:string},m:any[],meta:{userAgent?:string;ip?:string}={}){const sid=randomUUID(),permissions=[...new Set(m.flatMap((x:any)=>Array.isArray(x.permissions)?x.permissions:[]))],roles=m.map((x:any)=>x.role);await pool.query("insert into auth_sessions(id,tenant_id,user_id,expires_at,user_agent_hash,ip_hash) values($1,$2,$3,now()+interval '12 hours',$4,$5)",[sid,tenant(),user.id,meta.userAgent?sha(meta.userAgent):null,meta.ip?sha(meta.ip):null]);const token=await new SignJWT({sub:user.id,email:user.email,displayName:user.displayName,tenantId:tenant(),roles,permissions,sid}).setProtectedHeader({alg:"HS256"}).setIssuedAt().setExpirationTime("12h").sign(secret());return{accessToken:token,expiresIn:43200,sessionId:sid};}
+async function verifyRequest(auth?:string){const token=auth?.replace(/^Bearer\s+/i,"");if(!token)return null;try{const payload:any=(await jwtVerify(token,secret())).payload;if(payload.sub==="bootstrap-admin")return payload;if(!payload.sid)return null;const s=(await pool.query("select 1 from auth_sessions where tenant_id=$1 and id=$2 and user_id=$3 and revoked_at is null and expires_at>now()",[tenant(),payload.sid,payload.sub])).rowCount;if(!s)return null;await pool.query("update auth_sessions set last_seen_at=now() where id=$1",[payload.sid]);return payload;}catch{return null;}}
+function clientMeta(c:any){return{userAgent:c.req.header("user-agent")||undefined,ip:c.req.header("cf-connecting-ip")||c.req.header("x-forwarded-for")?.split(",")[0]?.trim()||undefined};}
 
-app.get("/health", async c => c.json(await health("identity")));
+app.get("/health",async c=>c.json(await health("identity")));
 
-app.post("/v1/identity/login", async c => {
-  const b = Login.parse(await c.req.json());
-  const email = b.email.toLowerCase();
+app.post("/v1/identity/login",async c=>{const b=Login.parse(await c.req.json()),email=b.email.toLowerCase(),row=(await pool.query("select id,email,display_name,password_hash,status from users where tenant_id=$1 and email=$2",[tenant(),email])).rows[0];if(row&&row.status==="ACTIVE"&&row.password_hash&&await bcrypt.compare(b.password,row.password_hash)){const m=await memberships(row.id),mfa=(await pool.query("select * from mfa_methods where tenant_id=$1 and user_id=$2 and method='TOTP' and enabled=true",[tenant(),row.id])).rows[0];if(mfa){const preAuthToken=await new SignJWT({sub:row.id,email:row.email,displayName:row.display_name,tenantId:tenant(),scope:"mfa-pending"}).setProtectedHeader({alg:"HS256"}).setIssuedAt().setExpirationTime("5m").sign(secret());return c.json({mfaRequired:true,preAuthToken});}await pool.query("update users set last_login_at=now() where id=$1",[row.id]);const session=await issueSession({id:row.id,email:row.email,displayName:row.display_name},m,clientMeta(c));return c.json({...session,user:{id:row.id,email:row.email,displayName:row.display_name,roles:m.map((x:any)=>x.role)}});}const bootstrapEmail=(process.env.BOOTSTRAP_ADMIN_EMAIL||"careers@theraeburngroup.com").toLowerCase();if(email===bootstrapEmail&&b.password===process.env.BOOTSTRAP_ADMIN_PASSWORD){const token=await new SignJWT({sub:"bootstrap-admin",email:b.email,displayName:"Bootstrap Administrator",tenantId:tenant(),roles:["PLATFORM_ADMIN"],permissions:["*"]}).setProtectedHeader({alg:"HS256"}).setIssuedAt().setExpirationTime("2h").sign(secret());return c.json({accessToken:token,expiresIn:7200,user:{id:"bootstrap-admin",email:b.email,displayName:"Bootstrap Administrator",roles:["PLATFORM_ADMIN"]}});}return c.json({code:"INVALID_CREDENTIALS",message:"Invalid credentials"},401);});
 
-  const result = await pool.query(
-    "select id,email,display_name,password_hash,status from users where tenant_id=$1 and email=$2",
-    [tenant(), email]
-  );
-  const row = result.rows[0];
+app.post("/v1/identity/mfa/login",async c=>{const b=z.object({preAuthToken:z.string(),code:z.string().regex(/^\d{6}$/)}).parse(await c.req.json());try{const payload:any=(await jwtVerify(b.preAuthToken,secret())).payload;if(payload.scope!=="mfa-pending"||!payload.sub)return c.json({code:"INVALID_MFA_SESSION",message:"MFA session invalid"},401);const mfa=(await pool.query("select * from mfa_methods where tenant_id=$1 and user_id=$2 and method='TOTP' and enabled=true",[tenant(),payload.sub])).rows[0];if(!mfa||!verifyTotp(decrypt(mfa.secret_encrypted),b.code))return c.json({code:"INVALID_MFA_CODE",message:"Invalid verification code"},401);const user=(await pool.query("select id,email,display_name,status from users where tenant_id=$1 and id=$2",[tenant(),payload.sub])).rows[0];if(!user||user.status!=="ACTIVE")return c.json({code:"ACCOUNT_DISABLED",message:"Account unavailable"},403);const m=await memberships(user.id);await pool.query("update users set last_login_at=now() where id=$1",[user.id]);const session=await issueSession({id:user.id,email:user.email,displayName:user.display_name},m,clientMeta(c));return c.json({...session,user:{id:user.id,email:user.email,displayName:user.display_name,roles:m.map((x:any)=>x.role)}});}catch{return c.json({code:"INVALID_MFA_SESSION",message:"MFA session invalid or expired"},401);}});
 
-  if (row && row.status === "ACTIVE" && row.password_hash && await bcrypt.compare(b.password,row.password_hash)) {
-    const memberships = (await pool.query(
-      "select role,permissions,organisation_id from memberships where tenant_id=$1 and user_id=$2",
-      [tenant(), row.id]
-    )).rows;
-    await pool.query("update users set last_login_at=now() where id=$1",[row.id]);
-    const token = await issueToken({id:row.id,email:row.email,displayName:row.display_name},memberships);
-    return c.json({accessToken:token,expiresIn:43200,user:{id:row.id,email:row.email,displayName:row.display_name,roles:memberships.map(m=>m.role)}});
-  }
+app.get("/v1/identity/introspect",async c=>{const payload=await verifyRequest(c.req.header("authorization"));return payload?c.json({active:true,...payload}):c.json({active:false},401);});
 
-  const bootstrapEmail=(process.env.BOOTSTRAP_ADMIN_EMAIL||"careers@theraeburngroup.com").toLowerCase();
-  if(email===bootstrapEmail && b.password===process.env.BOOTSTRAP_ADMIN_PASSWORD){
-    const id="bootstrap-admin";
-    const token=await new SignJWT({
-      sub:id,email:b.email,displayName:"Bootstrap Administrator",tenantId:tenant(),
-      roles:["PLATFORM_ADMIN"],permissions:["*"]
-    }).setProtectedHeader({alg:"HS256"}).setIssuedAt().setExpirationTime("12h").sign(secret());
-    return c.json({accessToken:token,expiresIn:43200,user:{id,email:b.email,displayName:"Bootstrap Administrator",roles:["PLATFORM_ADMIN"]}});
-  }
+app.get("/v1/identity/sessions",async c=>{const payload:any=await verifyRequest(c.req.header("authorization"));if(!payload||payload.sub==="bootstrap-admin")return c.json([]);return c.json((await pool.query("select id,created_at,expires_at,last_seen_at,user_agent_hash,ip_hash,case when revoked_at is null then 'ACTIVE' else 'REVOKED' end status from auth_sessions where tenant_id=$1 and user_id=$2 order by created_at desc",[tenant(),payload.sub])).rows);});
+app.delete("/v1/identity/sessions/:id",async c=>{const payload:any=await verifyRequest(c.req.header("authorization"));if(!payload)return c.json({code:"UNAUTHENTICATED",message:"Authentication required"},401);await pool.query("update auth_sessions set revoked_at=now() where tenant_id=$1 and id=$2 and user_id=$3",[tenant(),c.req.param("id"),payload.sub]);return c.json({ok:true});});
+app.post("/v1/identity/sessions/revoke-all",async c=>{const payload:any=await verifyRequest(c.req.header("authorization"));if(!payload)return c.json({code:"UNAUTHENTICATED",message:"Authentication required"},401);const{rowCount}=await pool.query("update auth_sessions set revoked_at=now() where tenant_id=$1 and user_id=$2 and revoked_at is null",[tenant(),payload.sub]);return c.json({revoked:rowCount||0});});
 
-  return c.json({code:"INVALID_CREDENTIALS",message:"Invalid credentials"},401);
-});
+app.post("/v1/identity/mfa/setup",async c=>{const payload:any=await verifyRequest(c.req.header("authorization"));if(!payload||payload.sub==="bootstrap-admin")return c.json({code:"FORBIDDEN",message:"Create a normal administrator before configuring MFA"},403);const raw=randomBytes(20),secretB32=base32Encode(raw),id=randomUUID();await pool.query("insert into mfa_methods(id,tenant_id,user_id,method,secret_encrypted,enabled) values($1,$2,$3,'TOTP',$4,false) on conflict(tenant_id,user_id,method) do update set secret_encrypted=excluded.secret_encrypted,enabled=false,verified_at=null",[id,tenant(),payload.sub,encrypt(secretB32)]);const issuer=encodeURIComponent("Raeburn Talent"),label=encodeURIComponent("Raeburn Talent:"+payload.email);return c.json({secret:secretB32,otpauthUri:"otpauth://totp/"+label+"?secret="+secretB32+"&issuer="+issuer+"&algorithm=SHA1&digits=6&period=30"});});
+app.post("/v1/identity/mfa/verify-setup",async c=>{const payload:any=await verifyRequest(c.req.header("authorization"));if(!payload)return c.json({code:"UNAUTHENTICATED",message:"Authentication required"},401);const code=z.string().regex(/^\d{6}$/).parse((await c.req.json()).code),mfa=(await pool.query("select * from mfa_methods where tenant_id=$1 and user_id=$2 and method='TOTP'",[tenant(),payload.sub])).rows[0];if(!mfa||!verifyTotp(decrypt(mfa.secret_encrypted),code))return c.json({code:"INVALID_MFA_CODE",message:"Verification code is invalid"},400);await pool.query("update mfa_methods set enabled=true,verified_at=now() where id=$1",[mfa.id]);return c.json({enabled:true});});
+app.delete("/v1/identity/mfa",async c=>{const payload:any=await verifyRequest(c.req.header("authorization"));if(!payload)return c.json({code:"UNAUTHENTICATED",message:"Authentication required"},401);await pool.query("update mfa_methods set enabled=false where tenant_id=$1 and user_id=$2 and method='TOTP'",[tenant(),payload.sub]);return c.json({enabled:false});});
 
-app.get("/v1/identity/introspect", async c => {
-  const payload = await verifyRequest(c.req.header("authorization"));
-  return payload ? c.json({active:true,...payload}) : c.json({active:false},401);
-});
+app.get("/v1/identity/providers",async c=>{const payload:any=await verifyRequest(c.req.header("authorization"));if(!payload)return c.json({code:"UNAUTHENTICATED",message:"Authentication required"},401);return c.json((await pool.query("select provider,status,config,updated_at from identity_providers where tenant_id=$1 order by provider",[tenant()])).rows);});
+app.put("/v1/identity/providers/:provider",async c=>{const payload:any=await verifyRequest(c.req.header("authorization"));if(!payload||!(payload.permissions||[]).some((p:string)=>p==="*"||p==="identity:write"))return c.json({code:"FORBIDDEN",message:"Insufficient permission"},403);const b=(await c.req.json()) as any,id=randomUUID();await pool.query("insert into identity_providers(id,tenant_id,provider,status,config) values($1,$2,$3,$4,$5::jsonb) on conflict(tenant_id,provider) do update set status=excluded.status,config=excluded.config,updated_at=now()",[id,tenant(),c.req.param("provider"),b.status||"DISABLED",JSON.stringify(b.config||{})]);return c.json({provider:c.req.param("provider"),status:b.status||"DISABLED"});});
 
-app.get("/v1/identity/users", async c => {
-  const payload:any = await verifyRequest(c.req.header("authorization"));
-  if(!payload || !(payload.permissions||[]).includes("*") && !(payload.permissions||[]).includes("identity:write"))
-    return c.json({code:"FORBIDDEN",message:"Insufficient permission"},403);
-  const {rows}=await pool.query(
-    "select u.id,u.email,u.display_name,u.status,u.created_at,u.last_login_at,m.role,m.permissions,m.organisation_id from users u left join memberships m on m.user_id=u.id and m.tenant_id=u.tenant_id where u.tenant_id=$1 order by u.display_name",
-    [tenant()]
-  );
-  return c.json(rows);
-});
-
-app.post("/v1/identity/users", async c => {
-  const payload:any = await verifyRequest(c.req.header("authorization"));
-  if(!payload || !(payload.permissions||[]).includes("*") && !(payload.permissions||[]).includes("identity:write"))
-    return c.json({code:"FORBIDDEN",message:"Insufficient permission"},403);
-
-  const b=CreateUser.parse(await c.req.json()),id=randomUUID(),email=b.email.toLowerCase();
-  const permissions=b.permissions||ROLE_DEFAULTS[b.role]||[];
-  const hash=await bcrypt.hash(b.password,12);
-  try{
-    await pool.query("begin");
-    await pool.query(
-      "insert into users(id,tenant_id,email,display_name,password_hash,status) values($1,$2,$3,$4,$5,'ACTIVE')",
-      [id,tenant(),email,b.displayName,hash]
-    );
-    await pool.query(
-      "insert into memberships(user_id,tenant_id,organisation_id,role,permissions) values($1,$2,$3,$4,$5::jsonb)",
-      [id,tenant(),b.organisationId,b.role,JSON.stringify(permissions)]
-    );
-    await pool.query("commit");
-  }catch(err){
-    await pool.query("rollback");
-    throw err;
-  }
-  return c.json({id,email,displayName:b.displayName,role:b.role,organisationId:b.organisationId,permissions},201);
-});
-
-app.patch("/v1/identity/users/:id/status", async c => {
-  const payload:any = await verifyRequest(c.req.header("authorization"));
-  if(!payload || !(payload.permissions||[]).includes("*") && !(payload.permissions||[]).includes("identity:write"))
-    return c.json({code:"FORBIDDEN",message:"Insufficient permission"},403);
-  const status=z.enum(["ACTIVE","DISABLED"]).parse((await c.req.json()).status);
-  const {rows}=await pool.query("update users set status=$3 where tenant_id=$1 and id=$2 returning id,email,status",[tenant(),c.req.param("id"),status]);
-  return rows[0]?c.json(rows[0]):c.json({code:"NOT_FOUND",message:"User not found"},404);
-});
+app.get("/v1/identity/users",async c=>{const payload:any=await verifyRequest(c.req.header("authorization"));if(!payload||!(payload.permissions||[]).some((p:string)=>p==="*"||p==="identity:write"))return c.json({code:"FORBIDDEN",message:"Insufficient permission"},403);const{rows}=await pool.query("select u.id,u.email,u.display_name,u.status,u.created_at,u.last_login_at,m.role,m.permissions,m.organisation_id,coalesce((select bool_or(enabled) from mfa_methods mm where mm.tenant_id=u.tenant_id and mm.user_id=u.id),false) mfa_enabled from users u left join memberships m on m.user_id=u.id and m.tenant_id=u.tenant_id where u.tenant_id=$1 order by u.display_name",[tenant()]);return c.json(rows);});
+app.post("/v1/identity/users",async c=>{const payload:any=await verifyRequest(c.req.header("authorization"));if(!payload||!(payload.permissions||[]).some((p:string)=>p==="*"||p==="identity:write"))return c.json({code:"FORBIDDEN",message:"Insufficient permission"},403);const b=CreateUser.parse(await c.req.json()),id=randomUUID(),email=b.email.toLowerCase(),permissions=b.permissions||ROLE_DEFAULTS[b.role]||[],hash=await bcrypt.hash(b.password,12);const client=await pool.connect();try{await client.query("begin");await client.query("insert into users(id,tenant_id,email,display_name,password_hash,status) values($1,$2,$3,$4,$5,'ACTIVE')",[id,tenant(),email,b.displayName,hash]);await client.query("insert into memberships(user_id,tenant_id,organisation_id,role,permissions) values($1,$2,$3,$4,$5::jsonb)",[id,tenant(),b.organisationId,b.role,JSON.stringify(permissions)]);await client.query("commit");}catch(err){await client.query("rollback");throw err;}finally{client.release();}return c.json({id,email,displayName:b.displayName,role:b.role,organisationId:b.organisationId,permissions},201);});
+app.patch("/v1/identity/users/:id/status",async c=>{const payload:any=await verifyRequest(c.req.header("authorization"));if(!payload||!(payload.permissions||[]).some((p:string)=>p==="*"||p==="identity:write"))return c.json({code:"FORBIDDEN",message:"Insufficient permission"},403);const status=z.enum(["ACTIVE","DISABLED"]).parse((await c.req.json()).status),{rows}=await pool.query("update users set status=$3 where tenant_id=$1 and id=$2 returning id,email,status",[tenant(),c.req.param("id"),status]);if(status==="DISABLED")await pool.query("update auth_sessions set revoked_at=now() where tenant_id=$1 and user_id=$2 and revoked_at is null",[tenant(),c.req.param("id")]);return rows[0]?c.json(rows[0]):c.json({code:"NOT_FOUND",message:"User not found"},404);});
 
 serve({fetch:app.fetch,port:Number(process.env.PORT||4109)});
