@@ -129,6 +129,23 @@ app.post("/v1/candidates/:id/merge",async c=>{
  return result?c.json(result):c.json({code:"NOT_FOUND",message:"Candidate not found"},404);
 });
 
+
+const ENGAGEMENT_WEIGHTS:Record<string,number>={APPLICATION:20,INTERVIEW:25,REPLY:20,EMAIL_CLICK:8,EMAIL_OPEN:3,PROFILE_UPDATE:5,TALENT_POOL_CONSENT:15,EVENT_ATTENDANCE:15,RECRUITER_CONTACT:4};
+function freshnessFrom(date:any){if(!date)return 0;const days=Math.max(0,(Date.now()-new Date(date).getTime())/86400000);return days<=30?100:days<=90?80:days<=180?50:days<=365?20:0;}
+async function recalcIntelligence(tenantId:string,candidateId:string){
+ const candidate=(await pool.query("select * from candidates where tenant_id=$1 and id=$2",[tenantId,candidateId])).rows[0];if(!candidate)return null;
+ const events=(await pool.query("select kind,weight,occurred_at from candidate_engagements where tenant_id=$1 and candidate_id=$2 order by occurred_at desc limit 200",[tenantId,candidateId])).rows;
+ const lastActivity=events[0]?.occurred_at||candidate.last_candidate_activity_at||candidate.last_contact_at||candidate.freshness_at||candidate.updated_at||candidate.created_at;
+ const ageDays=Math.max(0,(Date.now()-new Date(lastActivity).getTime())/86400000),decay=Math.max(.2,1-ageDays/365);
+ const raw=Math.min(100,events.reduce((sum:number,e:any)=>sum+Number(e.weight||ENGAGEMENT_WEIGHTS[e.kind]||0),0)),engagement=Math.round(raw*decay),freshness=freshnessFrom(lastActivity);
+ const{rows}=await pool.query("update candidates set engagement_score=$3,freshness_score=$4,last_candidate_activity_at=$5,freshness_at=$5 where tenant_id=$1 and id=$2 returning *",[tenantId,candidateId,engagement,freshness,lastActivity]);
+ return{candidate:map(rows[0]),engagement:{score:engagement,rawScore:raw,decay:Number(decay.toFixed(3)),lastActivity,events:events.slice(0,25)},freshness:{score:freshness,lastActivity,ageDays:Math.floor(ageDays),bands:{fresh:"0-30 days",warm:"31-90 days",cool:"91-180 days",stale:"181-365 days",dormant:"365+ days"}}};
+}
+app.get("/v1/candidates/:id/intelligence",async c=>{const x=context(c.req.raw.headers),result=await recalcIntelligence(x.tenantId,c.req.param("id"));return result?c.json(result):c.json({code:"NOT_FOUND",message:"Candidate not found"},404);});
+app.post("/v1/candidates/:id/engagements",async c=>{const x=context(c.req.raw.headers),candidateId=c.req.param("id"),b=z.object({kind:z.string().min(2),source:z.string().optional(),weight:z.number().min(0).max(100).optional(),detail:z.record(z.string(),z.unknown()).default({}),occurredAt:z.string().datetime().optional()}).parse(await c.req.json()),exists=(await pool.query("select 1 from candidates where tenant_id=$1 and id=$2",[x.tenantId,candidateId])).rowCount;if(!exists)return c.json({code:"NOT_FOUND",message:"Candidate not found"},404);const id=randomUUID(),weight=b.weight??ENGAGEMENT_WEIGHTS[b.kind]??5;await pool.query("insert into candidate_engagements(id,tenant_id,candidate_id,kind,weight,source,detail,occurred_at) values($1,$2,$3,$4,$5,$6,$7::jsonb,coalesce($8::timestamptz,now()))",[id,x.tenantId,candidateId,b.kind,weight,b.source||null,JSON.stringify(b.detail),b.occurredAt||null]);await pool.query("insert into candidate_timeline(id,tenant_id,candidate_id,event_type,title,detail,actor,occurred_at) values($1,$2,$3,'ENGAGEMENT',$4,$5::jsonb,$6,coalesce($7::timestamptz,now()))",[randomUUID(),x.tenantId,candidateId,"Candidate engagement: "+b.kind,JSON.stringify({kind:b.kind,weight,source:b.source||null,...b.detail}),c.req.header("x-actor")||"system",b.occurredAt||null]);const result=await recalcIntelligence(x.tenantId,candidateId);return c.json({id,...result},201);});
+app.get("/v1/candidates/:id/engagements",async c=>{const x=context(c.req.raw.headers);return c.json((await pool.query("select * from candidate_engagements where tenant_id=$1 and candidate_id=$2 order by occurred_at desc limit 250",[x.tenantId,c.req.param("id")])).rows);});
+app.post("/v1/candidates/intelligence/recalculate",async c=>{const x=context(c.req.raw.headers),ids=(await pool.query("select id from candidates where tenant_id=$1 and relationship_status<>'MERGED' order by updated_at desc limit 1000",[x.tenantId])).rows;let updated=0;for(const row of ids){if(await recalcIntelligence(x.tenantId,row.id))updated++;}return c.json({updated});});
+
 serve({fetch:app.fetch,port:Number(process.env.PORT||4102)});
 
 function map(r:any){return{
@@ -138,5 +155,5 @@ function map(r:any){return{
  employmentHistory:r.employment_history||[],education:r.education||[],skills:r.skills||[],qualifications:r.qualifications||[],certifications:r.certifications||[],
  languages:r.languages||[],salaryExpectation:r.salary_expectation||{},noticePeriod:r.notice_period,workEligibility:r.work_eligibility||{},mobility:r.mobility||{},
  workPreferences:r.work_preferences||{},preferredBusinessAreas:r.preferred_business_areas||[],preferredRoleTypes:r.preferred_role_types||[],
- engagementScore:Number(r.engagement_score||0)
+ engagementScore:Number(r.engagement_score||0),freshnessScore:Number(r.freshness_score||0),lastCandidateActivityAt:r.last_candidate_activity_at
 };}
