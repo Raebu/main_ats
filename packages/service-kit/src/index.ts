@@ -50,3 +50,25 @@ export async function flushOutbox(limit=100){
   }
   return rows.rowCount||0;
 }
+
+export function log(level:"debug"|"info"|"warn"|"error",message:string,fields:Record<string,unknown>={}){
+  const record={timestamp:new Date().toISOString(),level,service:process.env.SERVICE_NAME||"raeburn-service",message,...fields};
+  const line=JSON.stringify(record);
+  if(level==="error")console.error(line);else if(level==="warn")console.warn(line);else console.log(line);
+}
+export async function readiness(service:string){
+  const checks:Record<string,string>={database:"unknown",nats:"unknown"};
+  try{await pool.query("select 1");checks.database="ready";}catch{checks.database="down";}
+  try{const bus=await eventBus();checks.nats=bus.isClosed()?"down":"ready";}catch{checks.nats="down";}
+  return{service,status:Object.values(checks).every(x=>x==="ready")?"ready":"not_ready",checks,time:new Date().toISOString()};
+}
+export async function withRetry<T>(fn:()=>Promise<T>,options:{attempts?:number;baseMs?:number;maxMs?:number}={}){
+  const attempts=options.attempts||3,base=options.baseMs||100,max=options.maxMs||2000;
+  let last:unknown;
+  for(let i=0;i<attempts;i++){try{return await fn();}catch(e){last=e;if(i===attempts-1)break;const delay=Math.min(max,base*Math.pow(2,i))+Math.floor(Math.random()*base);await new Promise(r=>setTimeout(r,delay));}}
+  throw last;
+}
+export function redact(value:Record<string,unknown>){
+  const sensitive=new Set(["password","token","authorization","email","telephone","phone","cv","resume","coverNote"]);
+  return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,sensitive.has(k)? "[REDACTED]":v]));
+}
