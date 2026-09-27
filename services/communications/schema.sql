@@ -1,0 +1,2 @@
+create table if not exists messages(id text primary key,tenant_id text not null,application_id text,recipient text not null,subject text,body text not null,status text not null,provider_message_id text,created_at timestamptz not null default now(),sent_at timestamptz);
+create table if not exists processed_events(event_id text primary key,processed_at timestamptz not null default now());
