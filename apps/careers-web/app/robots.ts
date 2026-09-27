@@ -1,0 +1,1 @@
+import type{MetadataRoute}from"next";export default function robots():MetadataRoute.Robots{const base=process.env.CAREERS_BASE_URL||"https://theraeburngroup.com";return{rules:{userAgent:"*",allow:["/careers","/careers/jobs/"],disallow:["/api/","/careers/portal"]},sitemap:base+"/sitemap.xml"};}
