@@ -1,0 +1,38 @@
+import { randomUUID } from "node:crypto";
+import { z } from "zod";
+
+export const EventEnvelope = z.object({
+  eventId:z.string(),
+  eventType:z.string(),
+  eventVersion:z.number().int().positive(),
+  occurredAt:z.string().datetime(),
+  producer:z.string(),
+  correlationId:z.string(),
+  causationId:z.string().nullable().optional(),
+  tenantId:z.string(),
+  payload:z.unknown()
+});
+export type DomainEvent = z.infer<typeof EventEnvelope>;
+
+export function createEvent(input:Omit<DomainEvent,"eventId"|"occurredAt">):DomainEvent{
+  return EventEnvelope.parse({...input,eventId:randomUUID(),occurredAt:new Date().toISOString()});
+}
+
+export const Events={
+  jobCreated:"job.created.v1",
+  jobUpdated:"job.updated.v1",
+  jobPublished:"job.published.v1",
+  jobClosed:"job.closed.v1",
+  candidateCreated:"candidate.created.v1",
+  candidateUpdated:"candidate.updated.v1",
+  applicationCreated:"application.created.v1",
+  applicationWithdrawn:"application.withdrawn.v1",
+  workflowStageChanged:"workflow.stage_changed.v1",
+  documentUploaded:"document.uploaded.v1",
+  documentProcessed:"document.processed.v1",
+  distributionRequested:"distribution.requested.v1",
+  distributionPublished:"distribution.published.v1",
+  distributionFailed:"distribution.failed.v1",
+  communicationSent:"communication.sent.v1",
+  communicationFailed:"communication.failed.v1"
+} as const;
