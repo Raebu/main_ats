@@ -1,0 +1,52 @@
+services:
+  nats:
+    image: nats:2-alpine
+    command: ["-js"]
+    ports: ["4222:4222","8222:8222"]
+  jobs-db:
+    image: postgres:17-alpine
+    environment: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: jobs}
+    ports: ["5441:5432"]
+    volumes: ["jobs_data:/var/lib/postgresql/data"]
+  candidates-db:
+    image: postgres:17-alpine
+    environment: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: candidates}
+    ports: ["5442:5432"]
+    volumes: ["candidates_data:/var/lib/postgresql/data"]
+  applications-db:
+    image: postgres:17-alpine
+    environment: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: applications}
+    ports: ["5443:5432"]
+    volumes: ["applications_data:/var/lib/postgresql/data"]
+  attribution-db:
+    image: postgres:17-alpine
+    environment: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: attribution}
+    ports: ["5444:5432"]
+  workflow-db:
+    image: postgres:17-alpine
+    environment: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: workflow}
+    ports: ["5445:5432"]
+  documents-db:
+    image: postgres:17-alpine
+    environment: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: documents}
+    ports: ["5446:5432"]
+  communications-db:
+    image: postgres:17-alpine
+    environment: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: communications}
+    ports: ["5447:5432"]
+  distribution-db:
+    image: postgres:17-alpine
+    environment: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: distribution}
+    ports: ["5448:5432"]
+  identity-db:
+    image: postgres:17-alpine
+    environment: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: identity}
+    ports: ["5449:5432"]
+  organisations-db:
+    image: postgres:17-alpine
+    environment: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: organisations}
+    ports: ["5450:5432"]
+volumes:
+  jobs_data: {}
+  candidates_data: {}
+  applications_data: {}
