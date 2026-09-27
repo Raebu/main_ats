@@ -100,7 +100,7 @@ app.post("/v1/applications/portal/privacy-request",async c=>{
 
 
 app.post("/v1/applications/portal/interviews/:id/reschedule",async c=>{
- const token=c.req.header("authorization")?.replace(/^Bearer\\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
+ const token=c.req.header("authorization")?.replace(/^Bearer\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
  const session=await portalSession(token);if(!session)return c.json({code:"UNAUTHENTICATED",message:"Candidate session expired or invalid"},401);
  const h={"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id};
  const list=await fetch(INTERVIEWS+"/v1/interviews?applicationId="+session.application_id,{headers:h}),items:any[]=list.ok?await list.json():[];if(!items.some(i=>i.id===c.req.param("id")))return c.json({code:"FORBIDDEN",message:"Interview does not belong to this application"},403);
@@ -108,7 +108,7 @@ app.post("/v1/applications/portal/interviews/:id/reschedule",async c=>{
 });
 
 app.post("/v1/applications/portal/assessments/:id/submit",async c=>{
- const token=c.req.header("authorization")?.replace(/^Bearer\\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
+ const token=c.req.header("authorization")?.replace(/^Bearer\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
  const session=await portalSession(token);if(!session)return c.json({code:"UNAUTHENTICATED",message:"Candidate session expired or invalid"},401);
  const h={"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id};
  const list=await fetch(ASSESSMENTS+"/v1/assessments?applicationId="+session.application_id,{headers:h}),items:any[]=list.ok?await list.json():[];if(!items.some(i=>i.id===c.req.param("id")))return c.json({code:"FORBIDDEN",message:"Assessment does not belong to this application"},403);
@@ -116,7 +116,7 @@ app.post("/v1/applications/portal/assessments/:id/submit",async c=>{
 });
 
 app.post("/v1/applications/portal/assessments/:id/extension",async c=>{
- const token=c.req.header("authorization")?.replace(/^Bearer\\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
+ const token=c.req.header("authorization")?.replace(/^Bearer\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
  const session=await portalSession(token);if(!session)return c.json({code:"UNAUTHENTICATED",message:"Candidate session expired or invalid"},401);
  const h={"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id};
  const list=await fetch(ASSESSMENTS+"/v1/assessments?applicationId="+session.application_id,{headers:h}),items:any[]=list.ok?await list.json():[];if(!items.some(i=>i.id===c.req.param("id")))return c.json({code:"FORBIDDEN",message:"Assessment does not belong to this application"},403);
@@ -124,7 +124,7 @@ app.post("/v1/applications/portal/assessments/:id/extension",async c=>{
 });
 
 app.post("/v1/applications/portal/offers/:id/accept",async c=>{
- const token=c.req.header("authorization")?.replace(/^Bearer\\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
+ const token=c.req.header("authorization")?.replace(/^Bearer\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
  const session=await portalSession(token);if(!session)return c.json({code:"UNAUTHENTICATED",message:"Candidate session expired or invalid"},401);
  const h={"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id};
  const list=await fetch(OFFERS+"/v1/offers?applicationId="+session.application_id,{headers:h}),items:any[]=list.ok?await list.json():[];if(!items.some(i=>i.id===c.req.param("id")))return c.json({code:"FORBIDDEN",message:"Offer does not belong to this application"},403);
@@ -132,7 +132,7 @@ app.post("/v1/applications/portal/offers/:id/accept",async c=>{
 });
 
 app.post("/v1/applications/portal/offers/:id/decline",async c=>{
- const token=c.req.header("authorization")?.replace(/^Bearer\\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
+ const token=c.req.header("authorization")?.replace(/^Bearer\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
  const session=await portalSession(token);if(!session)return c.json({code:"UNAUTHENTICATED",message:"Candidate session expired or invalid"},401);
  const h={"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id};
  const list=await fetch(OFFERS+"/v1/offers?applicationId="+session.application_id,{headers:h}),items:any[]=list.ok?await list.json():[];if(!items.some(i=>i.id===c.req.param("id")))return c.json({code:"FORBIDDEN",message:"Offer does not belong to this application"},403);
