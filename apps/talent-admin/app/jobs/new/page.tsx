@@ -1,0 +1,1 @@
+import JobForm from"../../../components/JobForm";export default function Page(){return <><h1>New vacancy</h1><JobForm/></>}
