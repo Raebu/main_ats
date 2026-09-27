@@ -15,3 +15,7 @@ create table if not exists onboarding_handoffs(
 );
 create table if not exists processed_events(event_id text primary key,processed_at timestamptz not null default now());
 create table if not exists outbox_events(id text primary key,event_type text not null,payload jsonb not null,created_at timestamptz not null default now(),published_at timestamptz,retry_count int not null default 0,last_error text);
+alter table new_hires add column if not exists day_rate numeric;
+alter table new_hires add column if not exists contract_end_date date;
+alter table new_hires add column if not exists ir35_status text;
+alter table new_hires add column if not exists supplier_details jsonb not null default '{}';
