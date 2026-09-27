@@ -1,0 +1,3 @@
+import{cookies}from"next/headers";
+const API=process.env.TALENT_API_URL||"http://localhost:4100";
+export async function portalFetch(path:string,init:RequestInit={}){const token=(await cookies()).get("raeburn_candidate_session")?.value;if(!token)return new Response(JSON.stringify({error:"No candidate session"}),{status:401,headers:{"content-type":"application/json"}});const headers=new Headers(init.headers);headers.set("authorization","Bearer "+token);if(init.body&&!headers.has("content-type"))headers.set("content-type","application/json");return fetch(API+"/v1/applications/portal/"+path.replace(/^\//,""),{...init,headers,cache:"no-store"});}
