@@ -1,0 +1,1 @@
+create table if not exists integration_connections(id text primary key,tenant_id text not null,provider text not null,status text not null default 'DISCONNECTED',config jsonb not null default '{}',updated_at timestamptz not null default now(),unique(tenant_id,provider));
