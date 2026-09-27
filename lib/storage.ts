@@ -1,18 +1,7 @@
-import { put } from "@vercel/blob";
-
 export async function storeCandidateFile(file: File, candidateId: string) {
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
   const path = `candidates/${candidateId}/${Date.now()}-${safeName}`;
-
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
-    const blob = await put(path, file, {
-      access: "private",
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-      addRandomSuffix: false
-    });
-    return blob.url;
-  }
-
-  // Development fallback: retain metadata without pretending the file is public.
+  // Transitional root app: do not create public CV URLs.
+  // Private candidate files are owned by the Document Service and uploaded via scoped signed R2 URLs.
   return `pending://${path}`;
 }
