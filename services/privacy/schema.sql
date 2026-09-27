@@ -103,3 +103,11 @@ create table if not exists privacy_exports(
  id text primary key,tenant_id text not null,request_id text not null,format text not null,
  created_by text,created_at timestamptz not null default now(),expires_at timestamptz not null
 );
+
+
+create table if not exists compliance_signoffs(
+ id text primary key,tenant_id text not null,area text not null,version text not null,status text not null default 'PENDING',
+ reviewer_name text,reviewer_role text,reviewer_organisation text,evidence_reference text,notes text,
+ decided_at timestamptz,review_due_at timestamptz,created_by text,created_at timestamptz not null default now(),
+ unique(tenant_id,area,version)
+);
