@@ -1,0 +1,1 @@
+import UnsubscribeAlert from"../../../../components/UnsubscribeAlert";export default async function Page({searchParams}:{searchParams:Promise<{token?:string}>}){const{token=""}=await searchParams;return <main className="wrap"><small>JOB ALERTS</small><h1>Manage this alert</h1><UnsubscribeAlert token={token}/></main>}
