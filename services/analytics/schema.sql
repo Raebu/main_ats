@@ -1,0 +1,1 @@
+create table if not exists fact_events(event_id text primary key,tenant_id text not null,event_type text not null,occurred_at timestamptz not null,payload jsonb not null);create index if not exists fact_events_type on fact_events(tenant_id,event_type,occurred_at);
