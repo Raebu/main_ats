@@ -59,7 +59,7 @@ export default function TalentCopilot({initialConversations}:{initialConversatio
    <button onClick={newConversation}>+ New conversation</button>
    <h3>Recent</h3>
    {(conversations||[]).map((c:any)=><button className={c.id===conversationId?"historyActive":"historyButton"} key={c.id} onClick={()=>loadConversation(c.id)}>{c.title||"Conversation"}</button>)}
-  </aside>
+  </div>
   <section className="copilotPanel">
    <details className="card copilotContext">
     <summary>Optional record context</summary>
