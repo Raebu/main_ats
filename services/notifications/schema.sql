@@ -11,3 +11,6 @@ create table if not exists notification_groups(
  unread_count int not null default 0,last_notification_at timestamptz not null default now(),
  unique(tenant_id,user_id,group_key)
 );
+
+alter table notifications add column if not exists user_id text;
+create index if not exists notifications_user_unread on notifications(tenant_id,user_id,read_at,created_at desc);
