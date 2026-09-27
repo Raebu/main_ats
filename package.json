@@ -30,7 +30,9 @@
     "admin:dev": "npm --workspace @raeburn/talent-admin run dev",
     "build:careers": "npm --workspace @raeburn/careers-web run build",
     "build:admin": "npm --workspace @raeburn/talent-admin run build",
-    "build:frontends": "npm run build:careers && npm run build:admin"
+    "build:frontends": "npm run build:careers && npm run build:admin",
+    "migrate:services": "node scripts/migrate-services.mjs",
+    "check": "npm run typecheck && npm run test && npm run build:frontends"
   },
   "dependencies": {
     "@prisma/client": "6.12.0",
