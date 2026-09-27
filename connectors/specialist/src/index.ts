@@ -1,0 +1,1 @@
+import{httpJobBoardConnector}from"@raeburn/connectors";export const specialistConnector=httpJobBoardConnector({name:"specialist",displayName:"Specialist job boards",endpointEnv:"SPECIALIST_JOBS_API_BASE_URL",apiKeyEnv:"SPECIALIST_JOBS_API_KEY"});
