@@ -146,6 +146,8 @@ app.post("/v1/candidates/:id/engagements",async c=>{const x=context(c.req.raw.he
 app.get("/v1/candidates/:id/engagements",async c=>{const x=context(c.req.raw.headers);return c.json((await pool.query("select * from candidate_engagements where tenant_id=$1 and candidate_id=$2 order by occurred_at desc limit 250",[x.tenantId,c.req.param("id")])).rows);});
 app.post("/v1/candidates/intelligence/recalculate",async c=>{const x=context(c.req.raw.headers),ids=(await pool.query("select id from candidates where tenant_id=$1 and relationship_status<>'MERGED' order by updated_at desc limit 1000",[x.tenantId])).rows;let updated=0;for(const row of ids){if(await recalcIntelligence(x.tenantId,row.id))updated++;}return c.json({updated});});
 
+app.get("/v1/candidates/:id/blind",async c=>{const x=context(c.req.raw.headers),{rows}=await pool.query("select * from candidates where tenant_id=$1 and id=$2",[x.tenantId,c.req.param("id")]);if(!rows[0])return c.json({code:"NOT_FOUND",message:"Candidate not found"},404);const v=map(rows[0]);return c.json({id:v.id,location:v.location,profile:v.profile,tags:v.tags,employmentHistory:v.employmentHistory,education:v.education,skills:v.skills,qualifications:v.qualifications,certifications:v.certifications,languages:v.languages,workEligibility:v.workEligibility,mobility:v.mobility,workPreferences:v.workPreferences,preferredBusinessAreas:v.preferredBusinessAreas,preferredRoleTypes:v.preferredRoleTypes,identityHidden:true,hiddenFields:["name","email","telephone","linkedIn","portfolio"]});});
+
 serve({fetch:app.fetch,port:Number(process.env.PORT||4102)});
 
 function map(r:any){return{
