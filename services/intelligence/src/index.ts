@@ -107,9 +107,21 @@ async function runAdvice(tenantId:string,actor:string|null,b:z.infer<typeof Requ
 
 function detectIntent(message:string){
  const m=message.toLowerCase();
+ if(/summari[sz]e.*cv|cv summary|summarise resume|resume summary/.test(m))return"SUMMARISE_CV";
+ if(/missing (?:information|evidence)|what.*missing|evidence gaps?/.test(m))return"MISSING_INFORMATION";
+ if(/generate.*interview question|interview questions? for/.test(m))return"INTERVIEW_QUESTIONS";
+ if(/summari[sz]e.*(?:interview|feedback)/.test(m))return"SUMMARISE_INTERVIEW";
+ if(/summari[sz]e.*(?:debrief|panel)|debrief summary/.test(m))return"SUMMARISE_DEBRIEF";
+ if(/draft.*(?:job description|jd)|write.*job description/.test(m))return"DRAFT_JOB_DESCRIPTION";
+ if(/review.*(?:job description|jd)|job description review/.test(m))return"REVIEW_JOB_DESCRIPTION";
+ if(/inclusive.*language|inclusivity.*(?:job|jd)|exclusionary wording/.test(m))return"INCLUSIVE_LANGUAGE";
+ if(/normali[sz]e.*skills?|canonical skills?|skill taxonomy/.test(m))return"NORMALISE_SKILLS";
+ if(/similar candidates?/.test(m))return"SIMILAR_CANDIDATES";
+ if(/similar roles?|similar jobs?/.test(m))return"SIMILAR_ROLES";
  if(/still needs? interview|needs? interviewing|awaiting interview/.test(m))return"NEEDS_INTERVIEW";
  if(/previous candidate|rediscover|previously interviewed|match(?:ing)? this (?:job|role)|may fit this role/.test(m))return"REDISCOVER";
  if(/evidence.*requirement|against the requirements|evidence for this candidate/.test(m))return"EVIDENCE";
+ if(/draft.*(?:candidate )?(?:email|message|communication)/.test(m))return"DRAFT_COMMUNICATION";
  if(/draft.*follow|follow.?up/.test(m))return"DRAFT_FOLLOWUPS";
  if(/source performance|best source|source.*conversion/.test(m))return"SOURCE_PERFORMANCE";
  if(/funnel|drop.?off|conversion anomaly/.test(m))return"FUNNEL";
@@ -159,7 +171,100 @@ app.post("/v1/intelligence/copilot/query",async c=>{
  await saveMessage(x.tenantId,conversationId,"USER",b.message,intent);
  let answer="",citations:any[]=[],proposalSeed:any=null,ai:any=null;
 
- if(intent==="NEEDS_INTERVIEW"){
+ if(intent==="SUMMARISE_CV"){
+   if(!b.context.candidateId)answer="Choose a candidate first so I can summarise the correct CV/profile evidence.";
+   else{
+     const[candidate,extractions]=await Promise.all([
+       jsonFetch(CANDIDATES+"/v1/candidates/"+encodeURIComponent(b.context.candidateId),headers),
+       jsonFetch(process.env.INTELLIGENCE_SELF_URL||"http://localhost:4126"+"/v1/intelligence/candidates/"+encodeURIComponent(b.context.candidateId)+"/extractions",headers)
+     ]);
+     if(candidate)citations.push(recordCitation("candidate",candidate.id,candidate.name||"Candidate","/candidates/"+candidate.id));
+     ai=await runAdvice(x.tenantId,actor,{task:"summarise_cv",context:{question:b.message,candidate,extractions:extractions||[],sources:citations},promptVersion:"v1"});
+     answer=ai.status==="ok"?resultText(ai.result,"CV summary completed."):"The candidate record is linked below, but the advisory AI provider is not configured.";
+   }
+ }else if(intent==="MISSING_INFORMATION"){
+   if(!b.context.candidateId||!b.context.jobId)answer="Choose both a candidate and vacancy so I can identify evidence gaps against explicit role requirements.";
+   else{
+     const[candidate,job,apps]=await Promise.all([
+       jsonFetch(CANDIDATES+"/v1/candidates/"+encodeURIComponent(b.context.candidateId),headers),
+       jsonFetch(JOBS+"/v1/jobs/"+encodeURIComponent(b.context.jobId),headers),
+       jsonFetch(APPLICATIONS+"/v1/applications?candidateId="+encodeURIComponent(b.context.candidateId)+"&jobId="+encodeURIComponent(b.context.jobId),headers)
+     ]);
+     if(candidate)citations.push(recordCitation("candidate",candidate.id,candidate.name||"Candidate","/candidates/"+candidate.id));
+     if(job)citations.push(recordCitation("job",job.id,job.title||"Vacancy","/jobs/"+job.id));
+     for(const a of apps||[])citations.push(recordCitation("application",a.id,"Application "+a.id,"/applications/"+a.id));
+     ai=await runAdvice(x.tenantId,actor,{task:"missing_information",context:{question:b.message,candidate,job,applications:apps||[],sources:citations},promptVersion:"v1"});
+     answer=ai.status==="ok"?resultText(ai.result,"Evidence-gap review completed."):"The relevant records are linked below, but the advisory AI provider is not configured.";
+   }
+ }else if(intent==="INTERVIEW_QUESTIONS"){
+   if(!b.context.jobId)answer="Choose a vacancy first so questions stay tied to the real role requirements.";
+   else{
+     const[job,candidate]=await Promise.all([
+       jsonFetch(JOBS+"/v1/jobs/"+encodeURIComponent(b.context.jobId),headers),
+       b.context.candidateId?jsonFetch(CANDIDATES+"/v1/candidates/"+encodeURIComponent(b.context.candidateId),headers):Promise.resolve(null)
+     ]);
+     if(job)citations.push(recordCitation("job",job.id,job.title||"Vacancy","/jobs/"+job.id));
+     if(candidate)citations.push(recordCitation("candidate",candidate.id,candidate.name||"Candidate","/candidates/"+candidate.id));
+     ai=await runAdvice(x.tenantId,actor,{task:"interview_questions",context:{question:b.message,job,candidate,sources:citations},promptVersion:"v1"});
+     answer=ai.status==="ok"?resultText(ai.result,"Interview questions generated."):"The vacancy is linked below, but the advisory AI provider is not configured.";
+   }
+ }else if(intent==="SUMMARISE_INTERVIEW"||intent==="SUMMARISE_DEBRIEF"){
+   if(!b.context.applicationId)answer="Choose an application first so I can use the correct interview and panel records.";
+   else{
+     const[interviews,workflow]=await Promise.all([
+       jsonFetch(INTERVIEWS+"/v1/interviews?applicationId="+encodeURIComponent(b.context.applicationId),headers),
+       jsonFetch(WORKFLOW+"/v1/workflow/"+encodeURIComponent(b.context.applicationId),headers)
+     ]);
+     citations=(interviews||[]).map((i:any)=>recordCitation("interview",i.id,"Interview "+(i.round||i.id),"/applications/"+b.context.applicationId,"feedback"));
+     citations.push(recordCitation("application",b.context.applicationId,"Application "+b.context.applicationId,"/applications/"+b.context.applicationId));
+     const task=intent==="SUMMARISE_INTERVIEW"?"summarise_interview":"summarise_debrief";
+     ai=await runAdvice(x.tenantId,actor,{task,context:{question:b.message,interviews:interviews||[],workflow,sources:citations},promptVersion:"v1"});
+     answer=ai.status==="ok"?resultText(ai.result,"Interview evidence summary completed."):"The interview records are linked below, but the advisory AI provider is not configured.";
+   }
+ }else if(intent==="DRAFT_JOB_DESCRIPTION"||intent==="REVIEW_JOB_DESCRIPTION"||intent==="INCLUSIVE_LANGUAGE"){
+   const job=b.context.jobId?await jsonFetch(JOBS+"/v1/jobs/"+encodeURIComponent(b.context.jobId),headers):null;
+   if(job)citations.push(recordCitation("job",job.id,job.title||"Vacancy","/jobs/"+job.id));
+   if(intent!=="DRAFT_JOB_DESCRIPTION"&&!job)answer="Choose a vacancy first so I review the actual job description.";
+   else{
+     const task:TaskName=intent==="DRAFT_JOB_DESCRIPTION"?"draft_job_description":intent==="REVIEW_JOB_DESCRIPTION"?"review_job_description":"inclusive_language_review";
+     ai=await runAdvice(x.tenantId,actor,{task,context:{question:b.message,job,sources:citations},promptVersion:"v1"});
+     answer=ai.status==="ok"?resultText(ai.result,"Job-description assistance completed."):"The advisory AI provider is not configured, so I have not invented job-description content.";
+   }
+ }else if(intent==="NORMALISE_SKILLS"){
+   const candidate=b.context.candidateId?await jsonFetch(CANDIDATES+"/v1/candidates/"+encodeURIComponent(b.context.candidateId),headers):null;
+   if(candidate)citations.push(recordCitation("candidate",candidate.id,candidate.name||"Candidate","/candidates/"+candidate.id));
+   ai=await runAdvice(x.tenantId,actor,{task:"normalise_skills",context:{question:b.message,candidate,sources:citations},promptVersion:"v1"});
+   answer=ai.status==="ok"?resultText(ai.result,"Skill normalisation completed."):"The advisory AI provider is not configured.";
+ }else if(intent==="SIMILAR_CANDIDATES"){
+   if(!b.context.candidateId)answer="Choose a candidate first so similarity is based on explicit indexed evidence.";
+   else{
+     const rows:any[]=await jsonFetch(SEARCH+"/v1/search/similar/candidates/"+encodeURIComponent(b.context.candidateId),headers)||[];
+     citations=rows.map((r:any)=>recordCitation("candidate",r.id,r.title||"Candidate "+r.id,"/candidates/"+r.id));
+     ai=await runAdvice(x.tenantId,actor,{task:"similar_candidates",context:{question:b.message,records:rows,sources:citations},promptVersion:"v1"});
+     answer=ai.status==="ok"?resultText(ai.result,"Similar candidates found."):(rows.length?"I found "+rows.length+" candidates with explicit overlapping indexed evidence.":"No similar candidates were found.");
+   }
+ }else if(intent==="SIMILAR_ROLES"){
+   if(!b.context.jobId)answer="Choose a vacancy first so similarity is grounded in that role.";
+   else{
+     const job:any=await jsonFetch(JOBS+"/v1/jobs/"+encodeURIComponent(b.context.jobId),headers);
+     if(job)citations.push(recordCitation("job",job.id,job.title||"Vacancy","/jobs/"+job.id));
+     const qs=new URLSearchParams({type:"job",q:[job?.title,job?.requirements,job?.description].filter(Boolean).join(" "),semantic:"true",limit:"25"});
+     const search:any=await jsonFetch(SEARCH+"/v1/search?"+qs,headers),rows=(search?.results||[]).filter((r:any)=>r.id!==b.context.jobId);
+     citations.push(...rows.map((r:any)=>recordCitation("job",r.id,r.title||"Job "+r.id,"/jobs/"+r.id)));
+     ai=await runAdvice(x.tenantId,actor,{task:"similar_roles",context:{question:b.message,job,records:rows,sources:citations},promptVersion:"v1"});
+     answer=ai.status==="ok"?resultText(ai.result,"Similar roles found."):(rows.length?"I found "+rows.length+" roles with explicit searchable overlap.":"No similar roles were found.");
+   }
+ }else if(intent==="DRAFT_COMMUNICATION"){
+   const[candidate,apps]=await Promise.all([
+     b.context.candidateId?jsonFetch(CANDIDATES+"/v1/candidates/"+encodeURIComponent(b.context.candidateId),headers):Promise.resolve(null),
+     b.context.applicationId?jsonFetch(APPLICATIONS+"/v1/applications",headers):Promise.resolve([])
+   ]);
+   if(candidate)citations.push(recordCitation("candidate",candidate.id,candidate.name||"Candidate","/candidates/"+candidate.id));
+   if(b.context.applicationId)citations.push(recordCitation("application",b.context.applicationId,"Application "+b.context.applicationId,"/applications/"+b.context.applicationId));
+   ai=await runAdvice(x.tenantId,actor,{task:"draft_communication",context:{question:b.message,candidate,applications:apps||[],sources:citations},promptVersion:"v1"});
+   answer=ai.status==="ok"?resultText(ai.result,"Communication draft prepared."):"The advisory AI provider is not configured, so no candidate-facing text was invented.";
+   proposalSeed={actionType:"DRAFT_COMMUNICATION",summary:"Approve this draft for recruiter review only — nothing will be sent automatically.",payload:{draft:answer,candidateId:b.context.candidateId||null,applicationId:b.context.applicationId||null}};
+ }else if(intent==="NEEDS_INTERVIEW"){
    const qs=new URLSearchParams({type:"application",stage:"SHORTLIST,INTERVIEW,FINAL_INTERVIEW",limit:"100"});
    const search:any=await jsonFetch(SEARCH+"/v1/search?"+qs,headers);
    const rows=search?.results||[];
