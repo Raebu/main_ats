@@ -1,0 +1,1 @@
+{"name":"@raeburn/workflow-service","version":"0.1.0","private":true,"type":"module","scripts":{"start":"tsx src/index.ts","worker":"tsx src/worker.ts","outbox":"tsx src/outbox.ts"},"dependencies":{"@raeburn/contracts":"*","@raeburn/events":"*","@raeburn/service-kit":"*","@hono/node-server":"^1.19.1","hono":"^4.9.8","nats":"^2.29.3","tsx":"^4.20.5"}}
