@@ -1,0 +1,1 @@
+create table if not exists feature_flags(tenant_id text not null,key text not null,enabled boolean not null default false,config jsonb not null default '{}',updated_at timestamptz not null default now(),primary key(tenant_id,key));
