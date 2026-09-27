@@ -1,0 +1,1 @@
+create table if not exists tenant_config(tenant_id text not null,key text not null,value jsonb not null,updated_at timestamptz not null default now(),primary key(tenant_id,key));
