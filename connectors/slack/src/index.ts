@@ -1,0 +1,1 @@
+export async function slackNotify(webhookUrl:string,input:{text:string;blocks?:unknown[]}){const r=await fetch(webhookUrl,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(input),signal:AbortSignal.timeout(15000)});if(!r.ok)throw new Error("Slack webhook failed: "+r.status);return{ok:true,status:r.status};}
