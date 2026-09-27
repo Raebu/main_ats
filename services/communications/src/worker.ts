@@ -104,6 +104,18 @@ async function handle(subject: string) {
         }
       } else if (subject === "interview.feedback_reminder.v1" && p.reviewerId && String(p.reviewerId).includes("@")) {
         await sendMessage(e,p.applicationId,String(p.reviewerId),"Interview feedback reminder — Raeburn Talent","Your independent interview scorecard is due. Please submit your evidence before panel feedback is opened.");
+      } else if (["scheduler.candidate_keep_in_touch.due.v1","scheduler.candidate_reengagement.due.v1","scheduler.candidate_application_anniversary.due.v1"].includes(subject)) {
+        if (!applicationId) {
+          await pool.query("insert into processed_events(event_id) values($1) on conflict do nothing", [e.eventId]);
+          continue;
+        }
+        const h = await hydrate(e.tenantId, e.correlationId, applicationId);
+        const recipient = h?.candidate?.email;
+        if (recipient && !h?.candidate?.doNotContact) {
+          if (subject === "scheduler.candidate_keep_in_touch.due.v1") await sendMessage(e,applicationId,recipient,"Relevant opportunities at The Raeburn Group","You asked us to keep in touch about recruitment opportunities. Explore current Raeburn roles through Careers, or update your communication preferences in My Raeburn.");
+          if (subject === "scheduler.candidate_reengagement.due.v1") await sendMessage(e,applicationId,recipient,"Still open to opportunities with Raeburn?","We are checking in because you chose to hear about future opportunities. If your interests have changed, update your profile and preferences in My Raeburn.");
+          if (subject === "scheduler.candidate_application_anniversary.due.v1") await sendMessage(e,applicationId,recipient,"Your Raeburn recruitment preferences","It has been around a year since this application. Please review your profile, job alerts and recruitment communication preferences in My Raeburn so we only retain and use information in ways you still expect.");
+        }
       } else {
         if (!applicationId) {
           await pool.query("insert into processed_events(event_id) values($1) on conflict do nothing", [e.eventId]);
@@ -189,7 +201,10 @@ for (const subject of [
   "assessment.assigned.v1",
   "offer.issued.v1",
   "offer.expired.v1",
-  "candidate.hired.v1"
+  "candidate.hired.v1",
+  "scheduler.candidate_keep_in_touch.due.v1",
+  "scheduler.candidate_reengagement.due.v1",
+  "scheduler.candidate_application_anniversary.due.v1"
 ]) {
   handle(subject);
 }
