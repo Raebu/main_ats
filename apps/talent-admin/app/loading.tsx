@@ -1,0 +1,1 @@
+export default function Loading(){return <div aria-busy="true"><div className="skeleton skeletonTitle"/><div className="stats">{[1,2,3,4].map(x=><div className="skeleton skeletonCard" key={x}/>)}</div><div className="skeleton skeletonTable"/></div>}
