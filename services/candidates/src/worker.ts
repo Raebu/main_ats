@@ -1,17 +1,17 @@
 import{JSONCodec}from"nats";
 import type{DomainEvent}from"@raeburn/events";
-import{eventBus,pool}from"@raeburn/service-kit";
+import{eventBus,pool,serviceAuthHeaders}from"@raeburn/service-kit";
 
 const bus=await eventBus(),codec=JSONCodec<DomainEvent>();
 const CANDIDATES=process.env.CANDIDATES_URL||"http://localhost:4102";
 const APPLICATIONS=process.env.APPLICATIONS_URL||"http://localhost:4103";
 
 async function candidateForApplication(tenantId:string,applicationId:string){
- const r=await fetch(APPLICATIONS+"/v1/applications/"+applicationId,{headers:{"x-tenant-id":tenantId}});
+ const r=await fetch(APPLICATIONS+"/v1/applications/"+applicationId,{headers:serviceAuthHeaders({"x-tenant-id":tenantId})});
  if(!r.ok)return null;const a:any=await r.json();return a.candidateId||a.candidate_id||null;
 }
 async function record(e:DomainEvent,candidateId:string,kind:string,weight:number,detail:any={}){
- const r=await fetch(CANDIDATES+"/v1/candidates/"+candidateId+"/engagements",{method:"POST",headers:{"content-type":"application/json","x-tenant-id":e.tenantId,"x-correlation-id":e.correlationId,"x-actor":"candidate-intelligence-worker"},body:JSON.stringify({kind,weight,source:e.eventType,detail,occurredAt:e.occurredAt})});
+ const r=await fetch(CANDIDATES+"/v1/candidates/"+candidateId+"/engagements",{method:"POST",headers:serviceAuthHeaders({"content-type":"application/json","x-tenant-id":e.tenantId,"x-correlation-id":e.correlationId,"x-actor":"candidate-intelligence-worker"}),body:JSON.stringify({kind,weight,source:e.eventType,detail,occurredAt:e.occurredAt})});
  if(!r.ok)throw new Error("candidate engagement write failed: "+r.status);
 }
 const subjects=["application.created.v1","interview.completed.v1","offer.accepted.v1","candidate.hired.v1"];
