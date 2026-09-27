@@ -1,0 +1,1 @@
+import{api}from"../../lib/api";import SecuritySettings from"../../components/SecuritySettings";export default async function Page(){const sessions=await api("/v1/identity/sessions")||[];return <><h1>Security</h1><SecuritySettings sessions={sessions}/></>}
