@@ -3,7 +3,7 @@ import{serve}from"@hono/node-server";
 import{Hono}from"hono";
 import{z}from"zod";
 import{createEvent,Events}from"@raeburn/events";
-import{context,health,pool,withTransaction,writeOutbox}from"@raeburn/service-kit";
+import{context,health,pool,serviceAuthHeaders,withTransaction,writeOutbox}from"@raeburn/service-kit";
 
 const app=new Hono();
 const APPLICATIONS=process.env.APPLICATIONS_URL||"http://localhost:4103";
@@ -11,7 +11,7 @@ const JOBS=process.env.JOBS_URL||"http://localhost:4101";
 const CANDIDATES=process.env.CANDIDATES_URL||"http://localhost:4102";
 const sha=(v:string)=>createHash("sha256").update(v).digest("hex");
 const esc=(v:unknown)=>String(v??"").replace(/[&<>"\']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","\'":"&#39;"} as Record<string,string>)[ch]||ch);
-const headers=(tenantId:string,correlationId:string)=>({"x-tenant-id":tenantId,"x-correlation-id":correlationId});
+const headers=(tenantId:string,correlationId:string)=>serviceAuthHeaders({"x-tenant-id":tenantId,"x-correlation-id":correlationId});
 
 async function hydrate(tenantId:string,correlationId:string,applicationId:string){
  const h=headers(tenantId,correlationId),aRes=await fetch(APPLICATIONS+"/v1/applications/"+applicationId,{headers:h});if(!aRes.ok)return null;
