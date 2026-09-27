@@ -47,3 +47,12 @@ alter table candidates add column if not exists preferred_role_types jsonb not n
 alter table candidates add column if not exists engagement_score numeric not null default 0;
 create index if not exists candidate_phone_idx on candidates(tenant_id,telephone);
 create index if not exists candidate_linkedin_idx on candidates(tenant_id,linkedin);
+
+alter table candidates add column if not exists freshness_score numeric not null default 0;
+alter table candidates add column if not exists last_candidate_activity_at timestamptz;
+create table if not exists candidate_engagements(
+ id text primary key,tenant_id text not null,candidate_id text not null,kind text not null,
+ weight numeric not null default 0,source text,detail jsonb not null default '{}',
+ occurred_at timestamptz not null default now(),created_at timestamptz not null default now()
+);
+create index if not exists candidate_engagement_candidate on candidate_engagements(tenant_id,candidate_id,occurred_at desc);
