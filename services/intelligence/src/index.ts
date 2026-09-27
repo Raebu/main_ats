@@ -69,6 +69,9 @@ function internalHeaders(tenantId:string,correlationId:string,actor:string|null)
 async function jsonFetch(url:string,headers:Record<string,string>){
  try{const r=await fetch(url,{headers,signal:AbortSignal.timeout(8000)});return r.ok?await r.json():null;}catch{return null;}
 }
+async function postJson(url:string,headers:Record<string,string>,body:any){
+ try{const r=await fetch(url,{method:"POST",headers:{...headers,"content-type":"application/json"},body:JSON.stringify(body),signal:AbortSignal.timeout(8000)});return r.ok?await r.json():null;}catch{return null;}
+}
 function recordCitation(sourceType:string,sourceId:string,label:string,href:string,field?:string){
  return{sourceType,sourceId,label,href,...(field?{field}:{})};
 }
@@ -219,7 +222,7 @@ app.post("/v1/intelligence/copilot/query",async c=>{
    if(!b.context.applicationId)answer="Choose an application before I can propose an internal note.";
    else{answer="I can add this internal application note after you confirm the preview.";proposalSeed={actionType:"ADD_NOTE",summary:"Add internal note to application "+b.context.applicationId,payload:{applicationId:b.context.applicationId,body:b.message}};}
  }else{
-   const interpreted:any=await jsonFetch(SEARCH+"/v1/search/interpret",headers);
+   const interpreted:any=await postJson(SEARCH+"/v1/search/interpret",headers,{query:b.message});
    const qs=new URLSearchParams({q:b.message,semantic:"true",limit:"50"});
    const search:any=await jsonFetch(SEARCH+"/v1/search?"+qs,headers),rows=search?.results||[];
    citations=rows.slice(0,25).map((r:any)=>recordCitation(r.type||"record",r.id,r.title||r.id,r.type==="candidate"?"/candidates/"+r.id:r.type==="job"?"/jobs/"+r.id:r.type==="application"?"/applications/"+r.id:"/search"));
