@@ -33,3 +33,5 @@ create table if not exists interview_reminders(
  unique(tenant_id,interview_id,reviewer_id,kind)
 );
 create index if not exists interview_reminders_due on interview_reminders(status,scheduled_for);
+
+create unique index if not exists interview_feedback_unique on interview_feedback(tenant_id,interview_id,reviewer_id);
