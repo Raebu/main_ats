@@ -2,7 +2,12 @@
   "name": "raeburn-talent",
   "version": "0.2.0",
   "private": true,
-  "workspaces": ["packages/*","services/*","apps/*","connectors/*"],
+  "workspaces": [
+    "packages/*",
+    "services/*",
+    "apps/*",
+    "connectors/*"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
@@ -18,7 +23,11 @@
     "service:jobs": "npm --workspace @raeburn/jobs-service start",
     "service:candidates": "npm --workspace @raeburn/candidates-service start",
     "service:applications": "npm --workspace @raeburn/applications-service start",
-    "service:gateway": "npm --workspace @raeburn/api-gateway start"
+    "service:gateway": "npm --workspace @raeburn/api-gateway start",
+    "platform:bootstrap": "node scripts/bootstrap-local.mjs",
+    "platform:dev": "node scripts/dev-platform.mjs",
+    "careers:dev": "npm --workspace @raeburn/careers-web run dev",
+    "admin:dev": "npm --workspace @raeburn/talent-admin run dev"
   },
   "dependencies": {
     "@prisma/client": "6.12.0",
