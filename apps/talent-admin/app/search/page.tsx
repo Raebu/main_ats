@@ -1,1 +1,7 @@
-import{api}from"../../lib/api";export default async function Page({searchParams}:{searchParams:Promise<{q?:string;type?:string}>}){const q=await searchParams,term=q.q||"",data=term?await api("/v1/search?q="+encodeURIComponent(term)+(q.type?"&type="+encodeURIComponent(q.type):"")):null;return <><h1>Global search</h1><form><input name="q" defaultValue={term} placeholder="Candidates, jobs, skills, employers…" autoFocus/><select name="type" defaultValue={q.type||""}><option value="">Everything</option><option value="candidate">Candidates</option><option value="job">Jobs</option></select><button>Search</button></form>{data&&<><p><small>Ranking: {data.explanation?.ranking}. AI-only ranking: {data.explanation?.opaqueAiRanking?"Yes":"No"}.</small></p><div className="list">{(data.results||[]).map((r:any)=><div className="card" key={r.type+":"+r.id}><strong>{r.title}</strong><p>{r.type}</p><pre>{JSON.stringify(r.metadata,null,2)}</pre></div>)}</div></>}</>}
+import{api}from"../../lib/api";
+import TalentSearchWorkspace from"../../components/TalentSearchWorkspace";
+
+export default async function Page(){
+ const saved=await api("/v1/search/saved")||[];
+ return <><div className="pageHeader"><div><h1>Talent search & rediscovery</h1><p>Search across candidates and roles using Boolean logic, structured facets, ontology expansion and explainable similarity.</p></div></div><TalentSearchWorkspace initialSaved={saved}/></>;
+}
