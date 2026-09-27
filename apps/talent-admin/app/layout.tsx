@@ -1,0 +1,1 @@
+import"./globals.css";export default function Layout({children}:{children:React.ReactNode}){return <html lang="en"><body><aside><strong>RAEBURN TALENT</strong><a href="/">Dashboard</a><a href="/jobs">Jobs</a><a href="/applications">Applications</a><a href="/notifications">Notifications</a><a href="/system">System health</a></aside><main>{children}</main></body></html>}
