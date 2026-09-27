@@ -2,7 +2,7 @@ import{randomUUID}from"node:crypto";
 import{serve}from"@hono/node-server";
 import{Hono}from"hono";
 import{z}from"zod";
-import{context,health,pool}from"@raeburn/service-kit";
+import{context,health,pool,serviceAuthHeaders}from"@raeburn/service-kit";
 
 const app=new Hono();
 const CANDIDATES=process.env.CANDIDATES_URL||"http://localhost:4102";
@@ -64,7 +64,7 @@ const outputContract={
 function internalHeaders(tenantId:string,correlationId:string,actor:string|null){
  const h:Record<string,string>={"x-tenant-id":tenantId,"x-correlation-id":correlationId};
  if(actor)h["x-actor"]=actor;
- return h;
+ return serviceAuthHeaders(h);
 }
 async function jsonFetch(url:string,headers:Record<string,string>){
  try{const r=await fetch(url,{headers,signal:AbortSignal.timeout(8000)});return r.ok?await r.json():null;}catch{return null;}
@@ -395,7 +395,7 @@ app.post("/v1/intelligence/copilot/actions/:id/confirm",async c=>{
 
 app.get("/v1/intelligence/runs",async c=>{const x=context(c.req.raw.headers);return c.json((await pool.query("select id,task,provider,model,prompt_version,status,advisory_only,requested_by,created_at,completed_at,last_error from ai_runs where tenant_id=$1 order by created_at desc limit 250",[x.tenantId])).rows);});
 app.get("/v1/intelligence/candidates/:id/extractions",async c=>{const x=context(c.req.raw.headers);return c.json((await pool.query("select * from candidate_extractions where tenant_id=$1 and candidate_id=$2 order by created_at desc",[x.tenantId,c.req.param("id")])).rows);});
-app.post("/v1/intelligence/extractions/:id/approve",async c=>{const x=context(c.req.raw.headers),id=c.req.param("id"),row=(await pool.query("select * from candidate_extractions where tenant_id=$1 and id=$2",[x.tenantId,id])).rows[0];if(!row)return c.json({code:"NOT_FOUND",message:"Extraction not found"},404);if(row.status!=="REVIEW_REQUIRED")return c.json({code:"INVALID_STATE",message:"Extraction is not awaiting review"},409);const r=await fetch(CANDIDATES+"/v1/candidates/"+row.candidate_id+"/profile",{method:"PATCH",headers:{"content-type":"application/json","x-tenant-id":x.tenantId,"x-correlation-id":x.correlationId,"x-actor":c.req.header("x-actor")||"intelligence-review"},body:JSON.stringify({profile:row.extraction.profile||row.extraction,tags:row.extraction.tags||undefined})});if(!r.ok)return c.json({code:"CANDIDATE_UPDATE_FAILED",message:"Could not apply approved extraction"},502);await pool.query("update candidate_extractions set status='APPROVED',reviewed_by=$3,reviewed_at=now() where tenant_id=$1 and id=$2",[x.tenantId,id,c.req.header("x-actor")||null]);return c.json({id,status:"APPROVED",candidate:await r.json()});});
+app.post("/v1/intelligence/extractions/:id/approve",async c=>{const x=context(c.req.raw.headers),id=c.req.param("id"),row=(await pool.query("select * from candidate_extractions where tenant_id=$1 and id=$2",[x.tenantId,id])).rows[0];if(!row)return c.json({code:"NOT_FOUND",message:"Extraction not found"},404);if(row.status!=="REVIEW_REQUIRED")return c.json({code:"INVALID_STATE",message:"Extraction is not awaiting review"},409);const r=await fetch(CANDIDATES+"/v1/candidates/"+row.candidate_id+"/profile",{method:"PATCH",headers:serviceAuthHeaders({"content-type":"application/json","x-tenant-id":x.tenantId,"x-correlation-id":x.correlationId,"x-actor":c.req.header("x-actor")||"intelligence-review"}),body:JSON.stringify({profile:row.extraction.profile||row.extraction,tags:row.extraction.tags||undefined})});if(!r.ok)return c.json({code:"CANDIDATE_UPDATE_FAILED",message:"Could not apply approved extraction"},502);await pool.query("update candidate_extractions set status='APPROVED',reviewed_by=$3,reviewed_at=now() where tenant_id=$1 and id=$2",[x.tenantId,id,c.req.header("x-actor")||null]);return c.json({id,status:"APPROVED",candidate:await r.json()});});
 app.post("/v1/intelligence/extractions/:id/reject",async c=>{const x=context(c.req.raw.headers);const{rows}=await pool.query("update candidate_extractions set status='REJECTED',reviewed_by=$3,reviewed_at=now() where tenant_id=$1 and id=$2 and status='REVIEW_REQUIRED' returning *",[x.tenantId,c.req.param("id"),c.req.header("x-actor")||null]);return rows[0]?c.json(rows[0]):c.json({code:"NOT_FOUND",message:"Extraction not found or already reviewed"},404);});
 app.post("/v1/intelligence/prompts",async c=>{const x=context(c.req.raw.headers),b=(await c.req.json()) as any,id=randomUUID();const task=Task.parse(b.task);await pool.query("insert into prompt_versions(id,tenant_id,task,version,prompt,active) values($1,$2,$3,$4,$5,$6)",[id,x.tenantId,task,String(b.version),String(b.prompt),b.active!==false]);return c.json({id},201);});
 app.get("/v1/intelligence/prompts",async c=>{const x=context(c.req.raw.headers);return c.json((await pool.query("select * from prompt_versions where tenant_id=$1 order by task,created_at desc",[x.tenantId])).rows);});
