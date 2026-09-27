@@ -56,3 +56,5 @@ create table if not exists candidate_engagements(
  occurred_at timestamptz not null default now(),created_at timestamptz not null default now()
 );
 create index if not exists candidate_engagement_candidate on candidate_engagements(tenant_id,candidate_id,occurred_at desc);
+
+create table if not exists processed_events(event_id text primary key,processed_at timestamptz not null default now());
