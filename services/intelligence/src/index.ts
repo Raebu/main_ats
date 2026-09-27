@@ -174,10 +174,10 @@ app.post("/v1/intelligence/copilot/query",async c=>{
  if(intent==="SUMMARISE_CV"){
    if(!b.context.candidateId)answer="Choose a candidate first so I can summarise the correct CV/profile evidence.";
    else{
-     const[candidate,extractions]=await Promise.all([
+     const[candidate,extractionRows]=await Promise.all([
        jsonFetch(CANDIDATES+"/v1/candidates/"+encodeURIComponent(b.context.candidateId),headers),
-       jsonFetch((process.env.INTELLIGENCE_SELF_URL||"http://localhost:4126")+"/v1/intelligence/candidates/"+encodeURIComponent(b.context.candidateId)+"/extractions",headers)
-     ]);
+       pool.query("select id,document_id,parser_version,extraction,status,created_at from candidate_extractions where tenant_id=$1 and candidate_id=$2 order by created_at desc",[x.tenantId,b.context.candidateId])
+     ]),extractions=extractionRows.rows;
      if(candidate)citations.push(recordCitation("candidate",candidate.id,candidate.name||"Candidate","/candidates/"+candidate.id));
      ai=await runAdvice(x.tenantId,actor,{task:"summarise_cv",context:{question:b.message,candidate,extractions:extractions||[],sources:citations},promptVersion:"v1"});
      answer=ai.status==="ok"?resultText(ai.result,"CV summary completed."):"The candidate record is linked below, but the advisory AI provider is not configured.";
