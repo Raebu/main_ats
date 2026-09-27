@@ -1,0 +1,20 @@
+name: Service change map
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  changed:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - id: set
+        shell: bash
+        run: |
+          files="$(git diff --name-only origin/${{ github.base_ref }}...HEAD)"
+          services="$(printf '%s\n' "$files" | awk -F/ '/^services\//{print $2}' | sort -u | jq -R . | jq -sc .)"
+          echo "matrix=$services" >> "$GITHUB_OUTPUT"
+      - run: echo '${{ steps.set.outputs.matrix }}'
