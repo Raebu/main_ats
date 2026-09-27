@@ -12,7 +12,7 @@ const routes=[
 const isPublic=(method:string,path:string)=>
  (method==="GET"&&path.startsWith("/v1/jobs/public"))||
  (method==="GET"&&path.startsWith("/v1/distribution/feeds/"))||
- (method==="POST"&&path==="/v1/applications")||(path.startsWith("/v1/applications/portal/"))||
+ (method==="POST"&&(path==="/v1/applications"||path==="/v1/applications/job-alerts"))||(path.startsWith("/v1/applications/portal/"))||
  (method==="POST"&&path==="/v1/attribution/touchpoints")||
  (method==="POST"&&path==="/v1/documents/upload")||
  (method==="POST"&&/^\/v1\/documents\/[^/]+\/complete$/.test(path))||
