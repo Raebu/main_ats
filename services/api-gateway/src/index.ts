@@ -51,7 +51,7 @@ app.all("/v1/*",async c=>{
 
  const privileged=/^\/v1\/identity\/(providers|users\/[^/]+\/status|bootstrap\/disable|service-identities)/.test(url.pathname)||
    /^\/v1\/privacy\/(requests\/[^/]+\/(approve|execute)|retention-policies|legal-holds)/.test(url.pathname)||
-   (url.pathname==="/v1/intelligence/prompts"&&c.req.method==="POST");
+   ((url.pathname==="/v1/intelligence/prompts"||url.pathname.startsWith("/v1/intelligence/governance/"))&&!["GET","HEAD"].includes(c.req.method));
  if(privileged&&claims){
    const reauth=c.req.header("x-reauth-token");if(!reauth)return c.json({code:"REAUTH_REQUIRED",message:"Recent privileged re-authentication is required",correlationId},401);
    const rr=await fetch(IDENTITY+"/v1/identity/reauth/introspect",{method:"POST",headers:{authorization:"Bearer "+reauth}});
