@@ -1,0 +1,2 @@
+"use client";import{useState}from"react";
+export default function ShareRole({title}:{title:string}){const[copied,setCopied]=useState(false);async function share(){const url=window.location.href;if(navigator.share){await navigator.share({title,text:"Explore this opportunity at The Raeburn Group",url}).catch(()=>{});return;}await navigator.clipboard.writeText(url);setCopied(true);setTimeout(()=>setCopied(false),1800);}return <button className="secondary" onClick={share}>{copied?"Link copied":"Share role"}</button>}
