@@ -176,7 +176,7 @@ app.post("/v1/intelligence/copilot/query",async c=>{
    else{
      const[candidate,extractions]=await Promise.all([
        jsonFetch(CANDIDATES+"/v1/candidates/"+encodeURIComponent(b.context.candidateId),headers),
-       jsonFetch(process.env.INTELLIGENCE_SELF_URL||"http://localhost:4126"+"/v1/intelligence/candidates/"+encodeURIComponent(b.context.candidateId)+"/extractions",headers)
+       jsonFetch((process.env.INTELLIGENCE_SELF_URL||"http://localhost:4126")+"/v1/intelligence/candidates/"+encodeURIComponent(b.context.candidateId)+"/extractions",headers)
      ]);
      if(candidate)citations.push(recordCitation("candidate",candidate.id,candidate.name||"Candidate","/candidates/"+candidate.id));
      ai=await runAdvice(x.tenantId,actor,{task:"summarise_cv",context:{question:b.message,candidate,extractions:extractions||[],sources:citations},promptVersion:"v1"});
@@ -193,7 +193,7 @@ app.post("/v1/intelligence/copilot/query",async c=>{
      if(candidate)citations.push(recordCitation("candidate",candidate.id,candidate.name||"Candidate","/candidates/"+candidate.id));
      if(job)citations.push(recordCitation("job",job.id,job.title||"Vacancy","/jobs/"+job.id));
      for(const a of apps||[])citations.push(recordCitation("application",a.id,"Application "+a.id,"/applications/"+a.id));
-     ai=await runAdvice(x.tenantId,actor,{task:"missing_information",context:{question:b.message,candidate,job,applications:apps||[],sources:citations},promptVersion:"v1"});
+     ai=await runAdvice(x.tenantId,actor,{task:"missing_information",context:{question:b.message,candidate,job,application:apps||null,sources:citations},promptVersion:"v1"});
      answer=ai.status==="ok"?resultText(ai.result,"Evidence-gap review completed."):"The relevant records are linked below, but the advisory AI provider is not configured.";
    }
  }else if(intent==="INTERVIEW_QUESTIONS"){
@@ -257,7 +257,7 @@ app.post("/v1/intelligence/copilot/query",async c=>{
  }else if(intent==="DRAFT_COMMUNICATION"){
    const[candidate,apps]=await Promise.all([
      b.context.candidateId?jsonFetch(CANDIDATES+"/v1/candidates/"+encodeURIComponent(b.context.candidateId),headers):Promise.resolve(null),
-     b.context.applicationId?jsonFetch(APPLICATIONS+"/v1/applications",headers):Promise.resolve([])
+     b.context.applicationId?jsonFetch(APPLICATIONS+"/v1/applications/"+encodeURIComponent(b.context.applicationId),headers):Promise.resolve(null)
    ]);
    if(candidate)citations.push(recordCitation("candidate",candidate.id,candidate.name||"Candidate","/candidates/"+candidate.id));
    if(b.context.applicationId)citations.push(recordCitation("application",b.context.applicationId,"Application "+b.context.applicationId,"/applications/"+b.context.applicationId));
