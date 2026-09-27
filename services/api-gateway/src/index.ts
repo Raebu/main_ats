@@ -18,16 +18,22 @@ const isPublic=(method:string,path:string)=>
  (path.startsWith("/v1/organisations/vendor-portal/")&&["GET","POST"].includes(method))||
  (method==="POST"&&path==="/v1/documents/upload")||
  (method==="POST"&&/^\/v1\/documents\/[^/]+\/complete$/.test(path))||
- (method==="POST"&&path==="/v1/identity/login");
+ ((path==="/v1/identity/login"||path==="/v1/identity/refresh"||path==="/v1/identity/password-reset/request"||path==="/v1/identity/password-reset/confirm"||path==="/v1/identity/passkeys/auth/options"||path==="/v1/identity/passkeys/auth/verify"||/^\/v1\/identity\/sso\/[^/]+\/(start|callback)$/.test(path))&&["GET","POST"].includes(method))||
+ (method==="GET"&&path==="/v1/identity/jwks.json")||
+ (method==="GET"&&path==="/v1/privacy/notices/current")||
+ (method==="POST"&&path==="/v1/privacy/consents/public");
 
 
-app.use("*",async(c,next)=>{const started=Date.now(),origin=c.req.header("origin");c.header("x-content-type-options","nosniff");c.header("x-frame-options","DENY");c.header("referrer-policy","strict-origin-when-cross-origin");c.header("permissions-policy","camera=(), microphone=(), geolocation=()");c.header("content-security-policy","default-src 'none'; frame-ancestors 'none'");if(origin&&allowedOrigins.includes(origin)){c.header("access-control-allow-origin",origin);c.header("access-control-allow-credentials","true");c.header("vary","Origin");}if(c.req.method==="OPTIONS"){c.header("access-control-allow-methods","GET,POST,PATCH,PUT,DELETE,OPTIONS");c.header("access-control-allow-headers","authorization,content-type,x-correlation-id,x-tenant-id");return c.body(null,204);}const len=Number(c.req.header("content-length")||0);if(len>maxBody)return c.json({code:"PAYLOAD_TOO_LARGE",message:"Request exceeds maximum allowed size"},413);const ip=c.req.header("cf-connecting-ip")||c.req.header("x-forwarded-for")?.split(",")[0]?.trim()||"unknown";const publicRoute=isPublic(c.req.method,new URL(c.req.url).pathname);const limit=publicRoute?Number(process.env.PUBLIC_RATE_LIMIT_PER_MINUTE||120):Number(process.env.AUTH_RATE_LIMIT_PER_MINUTE||600);if(!rateAllowed(ip+":"+new URL(c.req.url).pathname,limit))return c.json({code:"RATE_LIMITED",message:"Too many requests"},429);await next();c.header("server-timing","gateway;dur="+(Date.now()-started));});
+app.use("*",async(c,next)=>{const started=Date.now(),origin=c.req.header("origin");c.header("x-content-type-options","nosniff");c.header("x-frame-options","DENY");c.header("referrer-policy","strict-origin-when-cross-origin");c.header("permissions-policy","camera=(), microphone=(), geolocation=()");c.header("content-security-policy","default-src 'none'; frame-ancestors 'none'");if(origin&&allowedOrigins.includes(origin)){c.header("access-control-allow-origin",origin);c.header("access-control-allow-credentials","true");c.header("vary","Origin");}if(c.req.method==="OPTIONS"){c.header("access-control-allow-methods","GET,POST,PATCH,PUT,DELETE,OPTIONS");c.header("access-control-allow-headers","authorization,content-type,x-correlation-id,x-tenant-id,x-organisation-id,x-reauth-token");return c.body(null,204);}const len=Number(c.req.header("content-length")||0);if(len>maxBody)return c.json({code:"PAYLOAD_TOO_LARGE",message:"Request exceeds maximum allowed size"},413);const ip=c.req.header("cf-connecting-ip")||c.req.header("x-forwarded-for")?.split(",")[0]?.trim()||"unknown";const requestPath=new URL(c.req.url).pathname,publicRoute=isPublic(c.req.method,requestPath);
+ const sensitiveAuth=requestPath==="/v1/identity/login"||requestPath==="/v1/identity/password-reset/request"||requestPath==="/v1/identity/passkeys/auth/options";
+ const limit=sensitiveAuth?Number(process.env.LOGIN_RATE_LIMIT_PER_MINUTE||10):(publicRoute?Number(process.env.PUBLIC_RATE_LIMIT_PER_MINUTE||120):Number(process.env.AUTH_RATE_LIMIT_PER_MINUTE||600));if(!rateAllowed(ip+":"+new URL(c.req.url).pathname,limit))return c.json({code:"RATE_LIMITED",message:"Too many requests"},429);await next();c.header("server-timing","gateway;dur="+(Date.now()-started));});
 app.get("/health",c=>c.json({service:"api-gateway",status:"healthy",time:new Date().toISOString()}));
 app.get("/health/services",async c=>{const auth=c.req.header("authorization");if(!auth)return c.json({code:"UNAUTHENTICATED",message:"Authentication required"},401);const verify=await fetch(IDENTITY+"/v1/identity/introspect",{headers:{authorization:auth}});if(!verify.ok)return c.json({code:"UNAUTHENTICATED",message:"Invalid or expired session"},401);const checks=await Promise.all(routes.map(async([prefix,base])=>{try{const r=await fetch(base+"/health",{signal:AbortSignal.timeout(2500)});const body=await r.json().catch(()=>({}));return{route:prefix,status:r.ok?"healthy":"degraded",service:(body as any).service||base};}catch{return{route:prefix,status:"down",service:base};}}));return c.json({service:"api-gateway",status:checks.every(x=>x.status==="healthy")?"healthy":"degraded",checks,time:new Date().toISOString()});});
 
 app.all("/v1/*",async c=>{
  const requestStarted=Date.now(),url=new URL(c.req.url),correlationId=c.req.header("x-correlation-id")||randomUUID();
- let tenantId=c.req.header("x-tenant-id")||process.env.DEFAULT_TENANT_ID||"tenant_raeburn_group";
+ const defaultTenant=process.env.DEFAULT_TENANT_ID||"tenant_raeburn_group";
+ let tenantId=isPublic(c.req.method,url.pathname)?defaultTenant:(c.req.header("x-tenant-id")||defaultTenant);
  let claims:any=null;
 
  if(!isPublic(c.req.method,url.pathname)){
@@ -43,6 +49,15 @@ app.all("/v1/*",async c=>{
      return c.json({code:"FORBIDDEN",message:"Permission required: "+needed,correlationId},403);
  }
 
+ const privileged=/^\/v1\/identity\/(providers|users\/[^/]+\/status|bootstrap\/disable|service-identities)/.test(url.pathname)||
+   /^\/v1\/privacy\/(requests\/[^/]+\/(approve|execute)|retention-policies|legal-holds)/.test(url.pathname)||
+   (url.pathname==="/v1/intelligence/prompts"&&c.req.method==="POST");
+ if(privileged&&claims){
+   const reauth=c.req.header("x-reauth-token");if(!reauth)return c.json({code:"REAUTH_REQUIRED",message:"Recent privileged re-authentication is required",correlationId},401);
+   const rr=await fetch(IDENTITY+"/v1/identity/reauth/introspect",{method:"POST",headers:{authorization:"Bearer "+reauth}});
+   if(!rr.ok)return c.json({code:"REAUTH_REQUIRED",message:"Privileged re-authentication expired or invalid",correlationId},401);
+   const rp:any=await rr.json();if(rp.sub!==claims.sub||rp.sid!==claims.sid)return c.json({code:"REAUTH_MISMATCH",message:"Re-authentication does not match this session",correlationId},403);
+ }
  const match=routes.find(([prefix])=>url.pathname.startsWith(prefix));
  if(!match)return c.json({code:"ROUTE_NOT_FOUND",message:"No service route",correlationId},404);
  const target=new URL(url.pathname+url.search,match[1]);
@@ -51,6 +66,10 @@ app.all("/v1/*",async c=>{
  headers.set("x-tenant-id",tenantId);
  if(claims?.sub)headers.set("x-actor",String(claims.sub));
  if(claims?.email)headers.set("x-actor-email",String(claims.email));
+ if(Array.isArray(claims?.organisationIds))headers.set("x-organisation-ids",claims.organisationIds.join(","));
+ const requestedOrg=c.req.header("x-organisation-id");
+ if(requestedOrg&&claims&&!((claims.organisationIds||[]).includes("*")||(claims.organisationIds||[]).includes(requestedOrg)))return c.json({code:"ORGANISATION_FORBIDDEN",message:"Access to this organisation is not permitted",correlationId},403);
+ if(requestedOrg)headers.set("x-organisation-id",requestedOrg);
  headers.delete("host");
  const init:any={method:c.req.method,headers,body:["GET","HEAD"].includes(c.req.method)?undefined:c.req.raw.body};
  if(init.body)init.duplex="half";
