@@ -1,1 +1,19 @@
-export default function Page(){return <><section className="hero"><small>ACCESSIBLE RECRUITMENT</small><h1>There is more than one way to apply.</h1><p>If the standard online form creates a barrier, tell us what format or route would make the process accessible.</p></section><main className="wrap"><div className="grid"><article className="card"><h2>Alternative format</h2><p>You can request application information in a different accessible format and ask for reasonable adjustments at any stage.</p></article><article className="card"><h2>Assisted application</h2><p>If you need support to complete the online process, the recruitment team can agree an alternative route without treating that request as selection evidence.</p></article><article className="card"><h2>Privacy</h2><p>Adjustment information should be used only to make recruitment accessible and shared only with people who need it for that purpose.</p></article></div><p><a className="button" href="/careers/accessibility">Accessibility information</a></p></main></>
+export default function Page(){
+  return (
+    <>
+      <section className="hero">
+        <small>ACCESSIBLE RECRUITMENT</small>
+        <h1>There is more than one way to apply.</h1>
+        <p>If the standard online form creates a barrier, tell us what format or route would make the process accessible.</p>
+      </section>
+      <main className="wrap">
+        <div className="grid">
+          <article className="card"><h2>Alternative format</h2><p>You can request application information in a different accessible format and ask for reasonable adjustments at any stage.</p></article>
+          <article className="card"><h2>Assisted application</h2><p>If you need support to complete the online process, the recruitment team can agree an alternative route without treating that request as selection evidence.</p></article>
+          <article className="card"><h2>Privacy</h2><p>Adjustment information should be used only to make recruitment accessible and shared only with people who need it for that purpose.</p></article>
+        </div>
+        <p><a className="button" href="/careers/accessibility">Accessibility information</a></p>
+      </main>
+    </>
+  );
+}
