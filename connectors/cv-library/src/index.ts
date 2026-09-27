@@ -1,0 +1,1 @@
+import{httpJobBoardConnector}from"@raeburn/connectors";export const cvLibraryConnector=httpJobBoardConnector({name:"cv-library",displayName:"CV-Library",endpointEnv:"CV_LIBRARY_API_BASE_URL",apiKeyEnv:"CV_LIBRARY_API_KEY"});
