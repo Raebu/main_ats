@@ -76,9 +76,10 @@ app.all("/v1/*",async c=>{
  const response=await fetch(target,{...init,signal:AbortSignal.timeout(Number(process.env.UPSTREAM_TIMEOUT_MS||15000))});
  const outHeaders=new Headers(response.headers);
  outHeaders.set("x-correlation-id",correlationId);
- if(claims&&!["GET","HEAD","OPTIONS"].includes(c.req.method)){
+ const sensitiveRead=c.req.method==="GET"&&[/^\/v1\/candidates/,/^\/v1\/documents/,/^\/v1\/privacy/,/^\/v1\/offers/,/^\/v1\/intelligence/,/^\/v1\/audit/].some(re=>re.test(url.pathname));
+ if(claims&&(!["GET","HEAD","OPTIONS"].includes(c.req.method)||sensitiveRead)){
    const ip=c.req.header("cf-connecting-ip")||c.req.header("x-forwarded-for")?.split(",")[0]?.trim()||"unknown",ipHash=createHash("sha256").update(ip).digest("hex");
-   fetch(AUDIT+"/internal/requests",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({tenantId,actor:claims.sub||null,actorEmail:claims.email||null,method:c.req.method,path:url.pathname,status:response.status,durationMs:Date.now()-requestStarted,correlationId,ipHash,userAgent:c.req.header("user-agent")||null})}).catch(()=>{});
+   fetch(AUDIT+"/internal/requests",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({tenantId,actor:claims.sub||null,actorEmail:claims.email||null,method:c.req.method,path:url.pathname,status:response.status,durationMs:Date.now()-requestStarted,correlationId,ipHash,userAgent:c.req.header("user-agent")||null,organisationIds:claims.organisationIds||[],sensitiveRead})}).catch(()=>{});
  }
  return new Response(response.body,{status:response.status,headers:outHeaders});
 });
