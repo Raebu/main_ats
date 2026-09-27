@@ -2,7 +2,7 @@ import{createCipheriv,createDecipheriv,createHash,createHmac,randomBytes,randomU
 import bcrypt from"bcryptjs";
 import{serve}from"@hono/node-server";
 import{Hono}from"hono";
-import{SignJWT,jwtVerify,createRemoteJWKSet,exportJWK,importPKCS8,importSPKI}from"jose";
+import{SignJWT,jwtVerify,createRemoteJWKSet,decodeProtectedHeader,exportJWK,importPKCS8,importSPKI}from"jose";
 import{generateAuthenticationOptions,generateRegistrationOptions,verifyAuthenticationResponse,verifyRegistrationResponse}from"@simplewebauthn/server";
 import{z}from"zod";
 import{health,pool}from"@raeburn/service-kit";
@@ -27,8 +27,24 @@ async function signClaims(claims:any,expires:string){
  return new SignJWT(claims).setProtectedHeader({alg:k.alg,kid:keyId(),typ:"JWT"}).setIssuedAt().setExpirationTime(expires).sign(k.key as any);
 }
 async function verifyClaims(token:string){
+ const header=decodeProtectedHeader(token),configured=process.env.AUTH_PUBLIC_KEYS_JSON;
+ if(configured){
+   const keys=JSON.parse(configured) as Record<string,string>,pem=keys[String(header.kid||"")];
+   if(pem)return (await jwtVerify(token,await importSPKI(pem.replace(/\\n/g,"\n"),"RS256"),{algorithms:["RS256"]})).payload as any;
+ }
  const k=await jwtKey("verify");
  return (await jwtVerify(token,k.key as any,{algorithms:[k.alg]})).payload as any;
+}
+function productionSecurityIssues(){
+ const issues:string[]=[];
+ if(process.env.NODE_ENV==="production"){
+   if(!process.env.AUTH_PRIVATE_KEY_PEM)issues.push("AUTH_PRIVATE_KEY_PEM");
+   if(!process.env.AUTH_PUBLIC_KEY_PEM&&!process.env.AUTH_PUBLIC_KEYS_JSON)issues.push("AUTH_PUBLIC_KEY_PEM or AUTH_PUBLIC_KEYS_JSON");
+   if(!process.env.TENANT_ENCRYPTION_MASTER_KEY)issues.push("TENANT_ENCRYPTION_MASTER_KEY");
+   if(!process.env.MFA_ENCRYPTION_KEY)issues.push("MFA_ENCRYPTION_KEY");
+   if(!process.env.WEBAUTHN_RP_ID||!process.env.WEBAUTHN_ORIGIN)issues.push("WEBAUTHN_RP_ID/WEBAUTHN_ORIGIN");
+ }
+ return issues;
 }
 async function securityEvent(input:{userId?:string|null,email?:string|null,eventType:string,ipHash?:string|null,userAgentHash?:string|null,detail?:any}){
  await pool.query("insert into auth_security_events(id,tenant_id,user_id,email,event_type,ip_hash,user_agent_hash,detail) values($1,$2,$3,$4,$5,$6,$7,$8::jsonb)",[randomUUID(),tenant(),input.userId||null,input.email||null,input.eventType,input.ipHash||null,input.userAgentHash||null,JSON.stringify(input.detail||{})]);
@@ -74,7 +90,7 @@ async function verifyRequest(auth?:string){
 }
 function clientMeta(c:any){return{userAgent:c.req.header("user-agent")||undefined,ip:c.req.header("cf-connecting-ip")||c.req.header("x-forwarded-for")?.split(",")[0]?.trim()||undefined};}
 
-app.get("/health",async c=>c.json(await health("identity")));
+app.get("/health",async c=>{const base=await health("identity"),issues=productionSecurityIssues();return c.json({...base,status:issues.length?"not_ready":"healthy",securityConfiguration:issues.length?{ready:false,missing:issues}:{ready:true}},issues.length?503:200);});
 
 app.post("/v1/identity/login",async c=>{
  const b=Login.parse(await c.req.json()),email=b.email.toLowerCase(),meta=clientMeta(c),hashes=metaHashes(meta);
@@ -120,9 +136,12 @@ app.patch("/v1/identity/users/:id/status",async c=>{const payload:any=await veri
 
 
 app.get("/v1/identity/jwks.json",async c=>{
+ const all:any[]=[];
+ const configured=process.env.AUTH_PUBLIC_KEYS_JSON?JSON.parse(process.env.AUTH_PUBLIC_KEYS_JSON) as Record<string,string>:null;
+ if(configured)for(const[kid,pem]of Object.entries(configured)){const jwk:any=await exportJWK(await importSPKI(pem.replace(/\\n/g,"\n"),"RS256"));jwk.use="sig";jwk.alg="RS256";jwk.kid=kid;all.push(jwk);}
  const publicPem=process.env.AUTH_PUBLIC_KEY_PEM?.replace(/\\n/g,"\n");
- if(!publicPem)return c.json({keys:[]});
- const jwk:any=await exportJWK(await importSPKI(publicPem,"RS256"));jwk.use="sig";jwk.alg="RS256";jwk.kid=keyId();return c.json({keys:[jwk]});
+ if(publicPem&&!all.some(k=>k.kid===keyId())){const jwk:any=await exportJWK(await importSPKI(publicPem,"RS256"));jwk.use="sig";jwk.alg="RS256";jwk.kid=keyId();all.push(jwk);}
+ return c.json({keys:all});
 });
 
 app.post("/v1/identity/refresh",async c=>{
