@@ -27,7 +27,7 @@ export default function CommercialWorkspace(p:any){
     <section className="card">
       <div className="sectionHead"><div><h2>Recruitment marketing</h2><p>Landing campaigns, careers fairs/events, advocacy links, QR codes and controlled experiments.</p></div></div>
       <div className="twoCol">
-        <form onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);busy(()=>call("/v1/campaigns","POST",{name:f.get("name"),slug:f.get("slug"),campaignType:f.get("type"),objective:f.get("objective"),budget:Number(f.get("budget")||0),landing:{headline:f.get("headline"),body:f.get("body"),ctaLabel:f.get("cta")}}));}}>
+        <form onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);busy(()=>call("/campaigns","POST",{name:f.get("name"),slug:f.get("slug"),campaignType:f.get("type"),objective:f.get("objective"),budget:Number(f.get("budget")||0),landing:{headline:f.get("headline"),body:f.get("body"),ctaLabel:f.get("cta")}}));}}>
           <h3>Create campaign</h3>
           <input name="name" placeholder="Campaign name" required/>
           <input name="slug" placeholder="campaign-slug" required/>
@@ -45,8 +45,8 @@ export default function CommercialWorkspace(p:any){
             <strong>{c.name}</strong>
             <small>{c.campaign_type} · {c.status} · £{Number(c.budget||0).toLocaleString()}</small>
             <div className="actions">
-              <button onClick={()=>busy(()=>call("/v1/campaigns/"+c.id,"PATCH",{status:c.status==="ACTIVE"?"PAUSED":"ACTIVE"}))}>{c.status==="ACTIVE"?"Pause":"Activate"}</button>
-              <button className="secondaryButton" onClick={()=>busy(()=>call("/v1/campaigns/"+c.id+"/experiments","POST",{name:"CTA test "+new Date().toLocaleDateString("en-GB"),experimentType:"CTA",primaryMetric:"APPLICATION",configuration:{}}))}>Add CTA test</button>
+              <button onClick={()=>busy(()=>call("/campaigns/"+c.id,"PATCH",{status:c.status==="ACTIVE"?"PAUSED":"ACTIVE"}))}>{c.status==="ACTIVE"?"Pause":"Activate"}</button>
+              <button className="secondaryButton" onClick={()=>busy(()=>call("/campaigns/"+c.id+"/experiments","POST",{name:"CTA test "+new Date().toLocaleDateString("en-GB"),experimentType:"CTA",primaryMetric:"APPLICATION",configuration:{}}))}>Add CTA test</button>
             </div>
           </div>)}
         </div>
@@ -62,7 +62,7 @@ export default function CommercialWorkspace(p:any){
         <div><small>Rewards paid</small><strong className="bigMetric">£{Number(s.rewards_paid||0).toLocaleString()}</strong></div>
       </div>
       <div className="twoCol">
-        <form onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);busy(()=>call("/v1/attribution/referrals","POST",{referrerId:f.get("employee"),jobId:String(f.get("job")||"")||undefined,ownershipDays:Number(f.get("days")||180),rewardScheme:{amount:Number(f.get("reward")||0),currency:"GBP"}}));}}>
+        <form onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);busy(()=>call("/attribution/referrals","POST",{referrerId:f.get("employee"),jobId:String(f.get("job")||"")||undefined,ownershipDays:Number(f.get("days")||180),rewardScheme:{amount:Number(f.get("reward")||0),currency:"GBP"}}));}}>
           <h3>Create employee referral</h3>
           <input name="employee" placeholder="Employee user ID" required/>
           <input name="job" placeholder="Optional vacancy ID"/>
@@ -81,7 +81,7 @@ export default function CommercialWorkspace(p:any){
     <section className="card">
       <h2>Agencies & suppliers</h2>
       <div className="twoCol">
-        <form onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);busy(()=>call("/v1/organisations/vendors","POST",{name:f.get("name"),vendorType:"AGENCY",contact:{email:f.get("email")},terms:{},feeModel:{}}));}}>
+        <form onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);busy(()=>call("/organisations/vendors","POST",{name:f.get("name"),vendorType:"AGENCY",contact:{email:f.get("email")},terms:{},feeModel:{}}));}}>
           <h3>Add agency</h3>
           <input name="name" placeholder="Agency name" required/>
           <input name="email" type="email" placeholder="Contact email"/>
@@ -90,7 +90,7 @@ export default function CommercialWorkspace(p:any){
         <div>
           {p.vendors.map((v:any)=><div className="subCard" key={v.id}>
             <strong>{v.name}</strong><small>Status {v.status} · quality {Number(v.quality_score||0)}%</small>
-            <button onClick={()=>{const email=prompt("Agency account email");if(email)busy(()=>call("/v1/organisations/vendors/"+v.id+"/accounts","POST",{email,displayName:v.name}).then(x=>navigator.clipboard?.writeText(x.accessToken||"")));}}>Create portal account & copy token</button>
+            <button onClick={()=>{const email=prompt("Agency account email");if(email)busy(()=>call("/organisations/vendors/"+v.id+"/accounts","POST",{email,displayName:v.name}).then(x=>navigator.clipboard?.writeText(x.accessToken||"")));}}>Create portal account & copy token</button>
           </div>)}
         </div>
       </div>
@@ -102,10 +102,10 @@ export default function CommercialWorkspace(p:any){
         {p.contractors.map((c:any)=><div className="subCard" key={c.id}>
           <strong>{c.candidate_id||c.id}</strong>
           <small>{c.contractor_stage} · £{Number(c.day_rate||0)}/day · ends {c.contract_end_date||"not set"}</small>
-          <select value={c.contractor_stage||"PRE_ENGAGEMENT"} onChange={e=>busy(()=>call("/v1/onboarding/contractors/"+c.id+"/stage","PATCH",{stage:e.target.value}))}>
+          <select value={c.contractor_stage||"PRE_ENGAGEMENT"} onChange={e=>busy(()=>call("/onboarding/contractors/"+c.id+"/stage","PATCH",{stage:e.target.value}))}>
             <option>PRE_ENGAGEMENT</option><option>ACTIVE</option><option>EXTENSION_REVIEW</option><option>ENDING</option><option>ENDED</option><option>REENGAGE</option>
           </select>
-          <button onClick={()=>{const end=prompt("New contract end date YYYY-MM-DD");if(end)busy(()=>call("/v1/onboarding/contractors/"+c.id+"/extensions","POST",{newEndDate:end,reason:"Extension approved in workforce workspace"}));}}>Extend contract</button>
+          <select defaultValue={c.contractor_pool_id||""} onChange={e=>e.target.value&&busy(()=>call("/onboarding/contractors/"+c.id+"/pool","POST",{poolId:e.target.value}))}><option value="">Contractor pool…</option>{p.pools.map((pool:any)=><option key={pool.id} value={pool.id}>{pool.name}</option>)}</select><button onClick={()=>{const end=prompt("New contract end date YYYY-MM-DD");if(end)busy(()=>call("/onboarding/contractors/"+c.id+"/extensions","POST",{newEndDate:end,reason:"Extension approved in workforce workspace"}));}}>Extend contract</button>
         </div>)}
       </div>
       <h3>Upcoming contractor reminders</h3>
@@ -121,7 +121,7 @@ export default function CommercialWorkspace(p:any){
         <div><small>Hiring velocity</small><strong className="bigMetric">{p.workforce.hiringVelocityPerMonth||0}/mo</strong></div>
       </div>
       <div className="twoCol">
-        <form onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);busy(()=>call("/v1/jobs/workforce/capacity","POST",{organisationId:f.get("org"),department:f.get("department"),periodStart:f.get("start"),periodEnd:f.get("end"),currentHeadcount:Number(f.get("current")||0),targetHeadcount:Number(f.get("target")||0),plannedHires:Number(f.get("hires")||0),plannedExits:Number(f.get("exits")||0),annualisedCost:Number(f.get("cost")||0)}));}}>
+        <form onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);busy(()=>call("/jobs/workforce/capacity","POST",{organisationId:f.get("org"),department:f.get("department"),periodStart:f.get("start"),periodEnd:f.get("end"),currentHeadcount:Number(f.get("current")||0),targetHeadcount:Number(f.get("target")||0),plannedHires:Number(f.get("hires")||0),plannedExits:Number(f.get("exits")||0),annualisedCost:Number(f.get("cost")||0)}));}}>
           <h3>Add capacity plan</h3>
           <input name="org" placeholder="Organisation ID" required/>
           <input name="department" placeholder="Department"/>
@@ -133,7 +133,7 @@ export default function CommercialWorkspace(p:any){
         </form>
         <div>
           <h3>Actual vs plan</h3>
-          {p.plans.map((x:any)=><div className="subCard" key={x.id}><strong>{x.name}</strong><small>{x.status} · budget £{Number(x.budget||0).toLocaleString()}</small><button className="secondaryButton" onClick={()=>busy(()=>call("/v1/jobs/hiring-plans/"+x.id+"/reconcile","POST",{}))}>Reconcile actual hires</button></div>)}
+          {p.plans.map((x:any)=><div className="subCard" key={x.id}><strong>{x.name}</strong><small>{x.status} · budget £{Number(x.budget||0).toLocaleString()}</small><button className="secondaryButton" onClick={()=>busy(()=>call("/jobs/hiring-plans/"+x.id+"/reconcile","POST",{}))}>Reconcile actual hires</button></div>)}
         </div>
       </div>
     </section>
