@@ -18,3 +18,17 @@ create table if not exists assessment_reviews(
  scores jsonb not null default '{}',feedback text,created_at timestamptz not null default now(),
  unique(tenant_id,assessment_id,reviewer_id)
 );
+
+alter table assessments add column if not exists extension_status text;
+alter table assessments add column if not exists extension_request jsonb not null default '{}';
+alter table assessments add column if not exists feedback_visible_at timestamptz;
+alter table assessments add column if not exists candidate_feedback text;
+alter table assessments add column if not exists updated_at timestamptz not null default now();
+create table if not exists assessment_template_versions(
+ id text primary key,tenant_id text not null,template_id text not null,version int not null,snapshot jsonb not null,
+ created_by text,created_at timestamptz not null default now(),unique(tenant_id,template_id,version)
+);
+create table if not exists assessment_extensions(
+ id text primary key,tenant_id text not null,assessment_id text not null,requested_due_at timestamptz,reason text not null,
+ status text not null default 'REQUESTED',decision_by text,decision_note text,created_at timestamptz not null default now(),decided_at timestamptz
+);
