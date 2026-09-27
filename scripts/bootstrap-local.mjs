@@ -1,0 +1,8 @@
+import fs from "node:fs/promises";import path from "node:path";import pg from "pg";
+const services=["jobs","candidates","applications","attribution","workflow","documents","communications","distribution","identity","organisations","audit","notifications","privacy","interviews","assessments","offers","talent-pools","careers-gateway","configuration","feature-flags","campaigns","webhooks","integrations","analytics","search","scheduler"];
+const adminUrl=process.env.LOCAL_POSTGRES_ADMIN_URL||"postgresql://postgres:postgres@localhost:5433/postgres";
+const admin=new pg.Client({connectionString:adminUrl});await admin.connect();
+for(const service of services){const db=service.replace(/-/g,"_");const exists=await admin.query("select 1 from pg_database where datname=$1",[db]);if(!exists.rowCount)await admin.query('create database "'+db+'"');}
+await admin.end();
+for(const service of services){const db=service.replace(/-/g,"_"),url="postgresql://postgres:postgres@localhost:5433/"+db,client=new pg.Client({connectionString:url});await client.connect();const schema=await fs.readFile(path.resolve("services",service,"schema.sql"),"utf8");await client.query(schema);try{const seed=await fs.readFile(path.resolve("services",service,"seed.sql"),"utf8");await client.query(seed);}catch(e){if(e?.code!=="ENOENT")throw e;}await client.end();console.log("ready",service,db);}
+console.log("Raeburn Talent local databases and seeds are ready.");
