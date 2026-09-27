@@ -1,1 +1,2 @@
-export{default}from"../page";
+import{jobs}from"../../../lib/api";import JobExplorer from"../../../components/JobExplorer";import JobAlertForm from"../../../components/JobAlertForm";import RecentSavedJobs from"../../../components/RecentSavedJobs";
+export default async function Page(){const rows=await jobs();return <><section className="hero"><small>OPEN OPPORTUNITIES</small><h1>Find work worth owning.</h1><p>Search roles across The Raeburn Group by team, location and the problems you want to solve.</p></section><main className="wrap"><RecentSavedJobs jobs={rows}/><JobExplorer jobs={rows}/><JobAlertForm/></main></>}
