@@ -58,7 +58,7 @@ function verifyTotp(secretB32:string,code:string){for(const o of[-1,0,1]){const 
 
 async function memberships(userId:string){return(await pool.query("select role,permissions,organisation_id from memberships where tenant_id=$1 and user_id=$2",[tenant(),userId])).rows;}
 async function issueSession(user:{id:string;email:string;displayName:string},m:any[],meta:{userAgent?:string;ip?:string}={}){
- const sid=randomUUID(),permissions=[...new Set(m.flatMap((x:any)=>Array.isArray(x.permissions)?x.permissions:[]))],roles=m.map((x:any)=>x.role),organisationIds=[...new Set(m.map((x:any)=>x.organisation_id).filter(Boolean))];
+ const sid=randomUUID(),permissions=[...new Set(m.flatMap((x:any)=>Array.isArray(x.permissions)?x.permissions:[]))],roles=m.map((x:any)=>x.role),organisationIds=permissions.includes("*")?["*"]:[...new Set(m.map((x:any)=>x.organisation_id).filter(Boolean))];
  const hashes=metaHashes(meta);
  await pool.query("insert into auth_sessions(id,tenant_id,user_id,expires_at,user_agent_hash,ip_hash) values($1,$2,$3,now()+interval '30 days',$4,$5)",[sid,tenant(),user.id,hashes.userAgentHash,hashes.ipHash]);
  const accessToken=await signClaims({sub:user.id,email:user.email,displayName:user.displayName,tenantId:tenant(),roles,permissions,organisationIds,sid,tokenType:"access"},"15m");
