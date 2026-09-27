@@ -18,3 +18,18 @@ create table if not exists interviewer_declarations(
  conflict_declared boolean not null default false,conflict_detail text,training_acknowledged boolean not null default false,
  created_at timestamptz not null default now(),unique(tenant_id,interview_id,reviewer_id)
 );
+
+alter table interviews add column if not exists questions_snapshot jsonb not null default '[]';
+alter table interviews add column if not exists score_dimensions_snapshot jsonb not null default '[]';
+alter table interviews add column if not exists training_prompt text;
+alter table interviews add column if not exists feedback_due_at timestamptz;
+alter table interviews add column if not exists consensus_opened_at timestamptz;
+alter table interviews add column if not exists reschedule_status text;
+alter table interviews add column if not exists reschedule_request jsonb not null default '{}';
+alter table interview_feedback add column if not exists submitted_at timestamptz not null default now();
+create table if not exists interview_reminders(
+ id text primary key,tenant_id text not null,interview_id text not null,reviewer_id text not null,kind text not null,
+ scheduled_for timestamptz not null,status text not null default 'PENDING',sent_at timestamptz,
+ unique(tenant_id,interview_id,reviewer_id,kind)
+);
+create index if not exists interview_reminders_due on interview_reminders(status,scheduled_for);
