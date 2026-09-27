@@ -1,0 +1,1 @@
+import {ensureOutbox,flushOutbox} from "@raeburn/service-kit";await ensureOutbox();setInterval(()=>flushOutbox().catch(console.error),1000);
