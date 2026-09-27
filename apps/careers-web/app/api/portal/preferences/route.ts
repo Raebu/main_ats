@@ -1,0 +1,2 @@
+import{NextResponse}from"next/server";import{portalFetch}from"../../../../lib/portal";
+export async function PUT(req:Request){const r=await portalFetch("preferences",{method:"PUT",body:JSON.stringify(await req.json())});return NextResponse.json(await r.json(),{status:r.status});}
