@@ -18,7 +18,7 @@ const ROLE_DEFAULTS: Record<string,string[]> = {
     "organisations:read","notifications:read","privacy:read","privacy:write","interviews:read",
     "interviews:write","assessments:read","assessments:write","offers:read","offers:write",
     "talent-pools:read","talent-pools:write","campaigns:read","campaigns:write","analytics:read",
-    "search:read","intelligence:use","audit:read","identity:write"
+    "search:read","intelligence:use","onboarding:read","onboarding:write","audit:read","identity:write","onboarding:read","onboarding:write"
   ],
   RECRUITER:[
     "jobs:read","jobs:write","candidates:read","candidates:write","applications:read",
@@ -30,11 +30,11 @@ const ROLE_DEFAULTS: Record<string,string[]> = {
   HIRING_MANAGER:[
     "jobs:read","candidates:read","applications:read","workflow:read","workflow:write",
     "documents:read","communications:read","interviews:read","interviews:write",
-    "assessments:read","assessments:write","offers:read","analytics:read","search:read"
+    "assessments:read","assessments:write","offers:read","analytics:read","search:read","onboarding:read"
   ],
   VIEWER:[
     "jobs:read","candidates:read","applications:read","workflow:read","communications:read",
-    "interviews:read","assessments:read","offers:read","talent-pools:read","analytics:read","search:read"
+    "interviews:read","assessments:read","offers:read","talent-pools:read","analytics:read","search:read","onboarding:read"
   ]
 };
 
