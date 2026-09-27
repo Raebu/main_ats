@@ -2,7 +2,7 @@ import{createHash,randomUUID}from"node:crypto";
 import{serve}from"@hono/node-server";
 import{Hono}from"hono";
 import{z}from"zod";
-import{context,health,pool,tenantDecrypt,tenantEncrypt}from"@raeburn/service-kit";
+import{context,health,pool,serviceAuthHeaders,tenantDecrypt,tenantEncrypt}from"@raeburn/service-kit";
 
 const app=new Hono();
 const sha=(v:string)=>createHash("sha256").update(v).digest("hex");
@@ -24,7 +24,7 @@ const URLS={
 function headers(tenantId:string,correlationId:string,body=false){
   const h:Record<string,string>={"x-tenant-id":tenantId,"x-correlation-id":correlationId};
   if(body)h["content-type"]="application/json";
-  return h;
+  return serviceAuthHeaders(h);
 }
 async function json(url:string,init:RequestInit={}){
   const r=await fetch(url,init);
