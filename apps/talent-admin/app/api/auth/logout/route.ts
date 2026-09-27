@@ -1,0 +1,1 @@
+import{NextResponse}from"next/server";export async function POST(req:Request){const out=NextResponse.redirect(new URL("/login",req.url),303);out.cookies.delete("raeburn_talent_token");return out;}
