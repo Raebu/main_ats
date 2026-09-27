@@ -1,0 +1,1 @@
+create table if not exists campaigns(id text primary key,tenant_id text not null,name text not null,slug text not null,status text not null default 'DRAFT',metadata jsonb not null default '{}',created_at timestamptz not null default now(),unique(tenant_id,slug));
