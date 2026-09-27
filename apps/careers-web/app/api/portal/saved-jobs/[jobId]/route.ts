@@ -1,0 +1,3 @@
+import{NextResponse}from"next/server";import{portalFetch}from"../../../../../lib/portal";
+export async function POST(_:Request,{params}:{params:Promise<{jobId:string}>}){const{jobId}=await params,r=await portalFetch("saved-jobs/"+encodeURIComponent(jobId),{method:"POST"});return NextResponse.json(await r.json(),{status:r.status});}
+export async function DELETE(_:Request,{params}:{params:Promise<{jobId:string}>}){const{jobId}=await params,r=await portalFetch("saved-jobs/"+encodeURIComponent(jobId),{method:"DELETE"});return NextResponse.json(await r.json(),{status:r.status});}
