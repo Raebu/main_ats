@@ -64,3 +64,6 @@ create table if not exists workforce_scenarios(
  id text primary key,tenant_id text not null,hiring_plan_id text,name text not null,assumptions jsonb not null default '{}',
  results jsonb not null default '{}',created_at timestamptz not null default now()
 );
+
+alter table jobs add column if not exists hiring_manager_user_id text;
+create index if not exists jobs_hiring_manager on jobs(tenant_id,hiring_manager_user_id,status);
