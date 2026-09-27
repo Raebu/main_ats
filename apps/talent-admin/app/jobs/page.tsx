@@ -1,0 +1,1 @@
+import{api}from"../../lib/api";export default async function Page(){const rows=await api("/v1/jobs")||[];return <><h1>Jobs</h1><table><thead><tr><th>Reference</th><th>Role</th><th>Status</th><th>Location</th></tr></thead><tbody>{rows.map((j:any)=><tr key={j.id}><td>{j.reference}</td><td>{j.title}</td><td>{j.status}</td><td>{j.location}</td></tr>)}</tbody></table></>}
