@@ -1,0 +1,2 @@
+create table if not exists touchpoints(id text primary key,tenant_id text not null,visitor_id text,session_id text,job_id text,source text,gateway text,campaign text,referrer text,utm jsonb not null default '{}',landing_page text,occurred_at timestamptz not null default now());
+create table if not exists conversions(id text primary key,tenant_id text not null,application_id text not null,job_id text not null,candidate_id text not null,attribution jsonb not null default '{}',created_at timestamptz not null default now(),unique(tenant_id,application_id));
