@@ -5,7 +5,7 @@ const routes=[
 ] as const;
 
 const isPublic=(method:string,path:string)=>
- (method==="GET"&&path.startsWith("/v1/jobs"))||
+ (method==="GET"&&path.startsWith("/v1/jobs/public"))||
  (method==="GET"&&path.startsWith("/v1/distribution/feeds/"))||
  (method==="POST"&&path==="/v1/applications")||
  (method==="POST"&&path==="/v1/attribution/touchpoints")||
@@ -49,7 +49,7 @@ function requiredPermission(method:string,path:string){
 
 app.use("*",async(c,next)=>{const started=Date.now();await next();c.header("server-timing","gateway;dur="+(Date.now()-started));});
 app.get("/health",c=>c.json({service:"api-gateway",status:"healthy",time:new Date().toISOString()}));
-app.get("/health/services",async c=>{const checks=await Promise.all(routes.map(async([prefix,base])=>{try{const r=await fetch(base+"/health",{signal:AbortSignal.timeout(2500)});const body=await r.json().catch(()=>({}));return{route:prefix,status:r.ok?"healthy":"degraded",service:(body as any).service||base};}catch{return{route:prefix,status:"down",service:base};}}));return c.json({service:"api-gateway",status:checks.every(x=>x.status==="healthy")?"healthy":"degraded",checks,time:new Date().toISOString()});});
+app.get("/health/services",async c=>{const auth=c.req.header("authorization");if(!auth)return c.json({code:"UNAUTHENTICATED",message:"Authentication required"},401);const verify=await fetch(IDENTITY+"/v1/identity/introspect",{headers:{authorization:auth}});if(!verify.ok)return c.json({code:"UNAUTHENTICATED",message:"Invalid or expired session"},401);const checks=await Promise.all(routes.map(async([prefix,base])=>{try{const r=await fetch(base+"/health",{signal:AbortSignal.timeout(2500)});const body=await r.json().catch(()=>({}));return{route:prefix,status:r.ok?"healthy":"degraded",service:(body as any).service||base};}catch{return{route:prefix,status:"down",service:base};}}));return c.json({service:"api-gateway",status:checks.every(x=>x.status==="healthy")?"healthy":"degraded",checks,time:new Date().toISOString()});});
 
 app.all("/v1/*",async c=>{
  const url=new URL(c.req.url),correlationId=c.req.header("x-correlation-id")||randomUUID();
