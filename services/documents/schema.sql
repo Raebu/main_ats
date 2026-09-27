@@ -1,2 +1,3 @@
 create table if not exists documents(id text primary key,tenant_id text not null,candidate_id text not null,application_id text,kind text not null,file_name text not null,mime_type text not null,size_bytes bigint not null,object_key text not null,status text not null default 'PENDING_UPLOAD',created_at timestamptz not null default now());
 create table if not exists outbox_events(id text primary key,event_type text not null,payload jsonb not null,created_at timestamptz not null default now(),published_at timestamptz,retry_count int not null default 0,last_error text);
+create table if not exists processed_events(event_id text primary key,processed_at timestamptz not null default now());
