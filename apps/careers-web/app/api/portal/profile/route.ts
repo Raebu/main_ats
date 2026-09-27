@@ -1,0 +1,2 @@
+import{NextResponse}from"next/server";import{portalFetch}from"../../../../lib/portal";
+export async function PATCH(req:Request){const r=await portalFetch("profile",{method:"PATCH",body:JSON.stringify(await req.json())});return NextResponse.json(await r.json(),{status:r.status});}
