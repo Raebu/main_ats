@@ -1,1 +1,6 @@
 create table if not exists search_documents(id text not null,tenant_id text not null,type text not null,title text,body text,metadata jsonb not null default '{}',updated_at timestamptz not null default now(),search_vector tsvector generated always as (to_tsvector('english',coalesce(title,'')||' '||coalesce(body,''))) stored,primary key(tenant_id,type,id));create index if not exists search_documents_fts on search_documents using gin(search_vector);
+create table if not exists saved_searches(
+ id text primary key,tenant_id text not null,user_id text not null,name text not null,resource_type text,
+ query text not null,filters jsonb not null default '{}',alert_enabled boolean not null default false,
+ created_at timestamptz not null default now(),updated_at timestamptz not null default now()
+);
