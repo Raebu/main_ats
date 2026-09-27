@@ -1,0 +1,1 @@
+create table if not exists organisations(id text primary key,tenant_id text not null,parent_id text,name text not null,slug text not null,legal_entity text,brand jsonb not null default '{}',careers_config jsonb not null default '{}',hiring_config jsonb not null default '{}',unique(tenant_id,slug));
