@@ -12,6 +12,9 @@ const JOBS=process.env.JOBS_URL||"http://localhost:4101";
 const ATTRIBUTION=process.env.ATTRIBUTION_URL||"http://localhost:4104";
 const WORKFLOW=process.env.WORKFLOW_URL||"http://localhost:4105";
 const PRIVACY=process.env.PRIVACY_URL||"http://localhost:4113";
+const INTERVIEWS=process.env.INTERVIEWS_URL||"http://localhost:4114";
+const ASSESSMENTS=process.env.ASSESSMENTS_URL||"http://localhost:4115";
+const OFFERS=process.env.OFFERS_URL||"http://localhost:4116";
 const uploadSecret=()=>new TextEncoder().encode(process.env.APPLICATION_UPLOAD_SECRET||process.env.AUTH_SECRET||"change-me");
 const tokenHash=(token:string)=>createHash("sha256").update(token).digest("hex");
 
@@ -63,8 +66,16 @@ app.get("/v1/applications/portal/session",async c=>{
  const application=(await pool.query("select * from applications where tenant_id=$1 and id=$2",[session.tenant_id,session.application_id])).rows[0];
  if(!application)return c.json({code:"NOT_FOUND",message:"Application not found"},404);
  const headers={"x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID()};
- const[jobRes,workflowRes]=await Promise.all([fetch(JOBS+"/v1/jobs/"+application.job_id,{headers}),fetch(WORKFLOW+"/v1/workflow/"+application.id,{headers})]);
- return c.json({application:map(application),job:jobRes.ok?await jobRes.json():null,workflow:workflowRes.ok?await workflowRes.json():null,sessionExpiresAt:session.expires_at});
+ const[jobRes,workflowRes,interviewRes,assessmentRes,offerRes]=await Promise.all([
+   fetch(JOBS+"/v1/jobs/"+application.job_id,{headers}),
+   fetch(WORKFLOW+"/v1/workflow/"+application.id,{headers}),
+   fetch(INTERVIEWS+"/v1/interviews?applicationId="+application.id,{headers}),
+   fetch(ASSESSMENTS+"/v1/assessments?applicationId="+application.id,{headers}),
+   fetch(OFFERS+"/v1/offers?applicationId="+application.id,{headers})
+ ]);
+ const offers:any[]=offerRes.ok?await offerRes.json():[];
+ const offerViews=await Promise.all(offers.filter((o:any)=>["ISSUED","ACCEPTED","DECLINED","EXPIRED"].includes(o.status)).map(async(o:any)=>{const d=await fetch(OFFERS+"/v1/offers/"+o.id+"/documents",{headers});return{...o,documents:d.ok?await d.json():[]};}));
+ return c.json({application:map(application),job:jobRes.ok?await jobRes.json():null,workflow:workflowRes.ok?await workflowRes.json():null,interviews:interviewRes.ok?await interviewRes.json():[],assessments:assessmentRes.ok?await assessmentRes.json():[],offers:offerViews,sessionExpiresAt:session.expires_at});
 });
 
 app.post("/v1/applications/portal/withdraw",async c=>{
@@ -85,6 +96,47 @@ app.post("/v1/applications/portal/privacy-request",async c=>{
  const body:any=await c.req.json();
  const r=await fetch(PRIVACY+"/v1/privacy/requests",{method:"POST",headers:{"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id},body:JSON.stringify({candidateId:session.candidate_id,type:body.type})});
  return c.json(await r.json(),r.status as any);
+});
+
+
+app.post("/v1/applications/portal/interviews/:id/reschedule",async c=>{
+ const token=c.req.header("authorization")?.replace(/^Bearer\\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
+ const session=await portalSession(token);if(!session)return c.json({code:"UNAUTHENTICATED",message:"Candidate session expired or invalid"},401);
+ const h={"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id};
+ const list=await fetch(INTERVIEWS+"/v1/interviews?applicationId="+session.application_id,{headers:h}),items:any[]=list.ok?await list.json():[];if(!items.some(i=>i.id===c.req.param("id")))return c.json({code:"FORBIDDEN",message:"Interview does not belong to this application"},403);
+ const r=await fetch(INTERVIEWS+"/v1/interviews/"+c.req.param("id")+"/reschedule-request",{method:"POST",headers:h,body:JSON.stringify(await c.req.json())});return c.json(await r.json(),r.status as any);
+});
+
+app.post("/v1/applications/portal/assessments/:id/submit",async c=>{
+ const token=c.req.header("authorization")?.replace(/^Bearer\\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
+ const session=await portalSession(token);if(!session)return c.json({code:"UNAUTHENTICATED",message:"Candidate session expired or invalid"},401);
+ const h={"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id};
+ const list=await fetch(ASSESSMENTS+"/v1/assessments?applicationId="+session.application_id,{headers:h}),items:any[]=list.ok?await list.json():[];if(!items.some(i=>i.id===c.req.param("id")))return c.json({code:"FORBIDDEN",message:"Assessment does not belong to this application"},403);
+ const r=await fetch(ASSESSMENTS+"/v1/assessments/"+c.req.param("id")+"/submit",{method:"POST",headers:h,body:JSON.stringify(await c.req.json())});return c.json(await r.json(),r.status as any);
+});
+
+app.post("/v1/applications/portal/assessments/:id/extension",async c=>{
+ const token=c.req.header("authorization")?.replace(/^Bearer\\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
+ const session=await portalSession(token);if(!session)return c.json({code:"UNAUTHENTICATED",message:"Candidate session expired or invalid"},401);
+ const h={"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id};
+ const list=await fetch(ASSESSMENTS+"/v1/assessments?applicationId="+session.application_id,{headers:h}),items:any[]=list.ok?await list.json():[];if(!items.some(i=>i.id===c.req.param("id")))return c.json({code:"FORBIDDEN",message:"Assessment does not belong to this application"},403);
+ const r=await fetch(ASSESSMENTS+"/v1/assessments/"+c.req.param("id")+"/extensions",{method:"POST",headers:h,body:JSON.stringify(await c.req.json())});return c.json(await r.json(),r.status as any);
+});
+
+app.post("/v1/applications/portal/offers/:id/accept",async c=>{
+ const token=c.req.header("authorization")?.replace(/^Bearer\\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
+ const session=await portalSession(token);if(!session)return c.json({code:"UNAUTHENTICATED",message:"Candidate session expired or invalid"},401);
+ const h={"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id};
+ const list=await fetch(OFFERS+"/v1/offers?applicationId="+session.application_id,{headers:h}),items:any[]=list.ok?await list.json():[];if(!items.some(i=>i.id===c.req.param("id")))return c.json({code:"FORBIDDEN",message:"Offer does not belong to this application"},403);
+ const r=await fetch(OFFERS+"/v1/offers/"+c.req.param("id")+"/accept",{method:"POST",headers:h,body:JSON.stringify(await c.req.json())});return c.json(await r.json(),r.status as any);
+});
+
+app.post("/v1/applications/portal/offers/:id/decline",async c=>{
+ const token=c.req.header("authorization")?.replace(/^Bearer\\s+/i,"");if(!token)return c.json({code:"UNAUTHENTICATED",message:"Candidate session required"},401);
+ const session=await portalSession(token);if(!session)return c.json({code:"UNAUTHENTICATED",message:"Candidate session expired or invalid"},401);
+ const h={"content-type":"application/json","x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-actor":"candidate:"+session.candidate_id};
+ const list=await fetch(OFFERS+"/v1/offers?applicationId="+session.application_id,{headers:h}),items:any[]=list.ok?await list.json():[];if(!items.some(i=>i.id===c.req.param("id")))return c.json({code:"FORBIDDEN",message:"Offer does not belong to this application"},403);
+ const r=await fetch(OFFERS+"/v1/offers/"+c.req.param("id")+"/decline",{method:"POST",headers:h,body:JSON.stringify(await c.req.json())});return c.json(await r.json(),r.status as any);
 });
 
 app.post("/v1/applications/portal/revoke",async c=>{
