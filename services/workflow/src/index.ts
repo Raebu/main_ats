@@ -1,4 +1,4 @@
-import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{WorkflowStage}from"@raeburn/contracts";import{canTransition}from"@raeburn/policy";import{createEvent,Events}from"@raeburn/events";import{context,health,pool,withTransaction,writeOutbox}from"@raeburn/service-kit";
+import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{WorkflowStage}from"@raeburn/contracts";import{canTransition}from"@raeburn/policy";import{createEvent,Events}from"@raeburn/events";import{context,health,pool,withTransaction,writeOutbox,serviceAuthHeaders}from"@raeburn/service-kit";
 const app=new Hono(),APPLICATIONS=process.env.APPLICATIONS_URL||"http://localhost:4103";
 const SLA_HOURS:Record<string,number>={APPLIED:24,SCREENING:48,REVIEW:48,SHORTLIST:72,INTERVIEW:120,FINAL_INTERVIEW:72,OFFER:72,ON_HOLD:168,TALENT_POOL:720};
 app.get("/health",async c=>c.json(await health("workflow")));
@@ -15,7 +15,7 @@ app.patch("/v1/workflow/:applicationId/stage",async c=>{
    if(!reason)return c.json({code:"INVALID_DECISION_REASON",message:"Select an active rejection reason from the configured taxonomy."},422);
    const stages=Array.isArray(reason.stages)?reason.stages:[];if(stages.length&&!stages.includes(from))return c.json({code:"REASON_NOT_ALLOWED_FOR_STAGE",message:"This decision reason is not configured for the current stage."},422);
  }
- let application:any=null;if(to==="HIRED"){const r=await fetch(APPLICATIONS+"/v1/applications/"+applicationId,{headers:{"x-tenant-id":x.tenantId,"x-correlation-id":x.correlationId}});if(r.ok)application=await r.json();}
+ let application:any=null;if(to==="HIRED"){const r=await fetch(APPLICATIONS+"/v1/applications/"+applicationId,{headers:serviceAuthHeaders({"x-tenant-id":x.tenantId,"x-correlation-id":x.correlationId})});if(r.ok)application=await r.json();}
  const result=await withTransaction(async client=>{
   await client.query("insert into application_workflows(application_id,tenant_id,stage) values($1,$2,$3) on conflict(tenant_id,application_id) do update set stage=excluded.stage,updated_at=now()",[applicationId,x.tenantId,to]);
   await client.query("insert into stage_history(id,tenant_id,application_id,from_stage,to_stage,actor) values($1,$2,$3,$4,$5,$6)",[randomUUID(),x.tenantId,applicationId,from,to,actor]);
