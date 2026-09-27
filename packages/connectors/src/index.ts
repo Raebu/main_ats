@@ -1,0 +1,4 @@
+export type ConnectorResult={status:"published"|"updated"|"closed"|"not_configured"|"failed";externalReference?:string;message?:string};
+export type ConnectorJob={id:string;reference:string;slug:string;title:string;description:string;summary:string;requirements:string;location:string;employmentType:string;datePosted?:string|null;validThrough?:string|null;hiringOrganisation?:string;canonicalUrl:string};
+export interface JobBoardConnector{name:string;publish(job:ConnectorJob):Promise<ConnectorResult>;update(job:ConnectorJob):Promise<ConnectorResult>;close(job:ConnectorJob):Promise<ConnectorResult>;status(job:ConnectorJob):Promise<ConnectorResult>;}
+export function notConfigured(name:string):ConnectorResult{return{status:"not_configured",message:name+" connector requires provider credentials/contract configuration"};}
