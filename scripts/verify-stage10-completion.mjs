@@ -34,7 +34,7 @@ expectContains("scripts/ci-security-isolation.mjs",[
 expectContains("scripts/ci-integration-smoke.mjs",[
   "candidatePortalToken","portal DSAR","distribution worker did not publish","JSON distribution feed missing"
 ]);
-expectContains("scripts/validate-migrations.mjs",["_schema_migrations"]);
+expectContains("scripts/validate-migrations.mjs",["missing migrations directory","destructive-approved"]);\nexpectContains("scripts/migrate-services.mjs",["_schema_migrations"]);
 expectContains("scripts/release-smoke.mjs",["/health","/v1/jobs/public"]);
 
 if(failures.length){
