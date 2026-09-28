@@ -1,1 +1,4 @@
-import{JSONCodec}from"nats";import type{DomainEvent}from"@raeburn/events";import{eventBus,pool}from"@raeburn/service-kit";const bus=await eventBus(),codec=JSONCodec<DomainEvent>(),sub=bus.subscribe(">");for await(const m of sub){const e=codec.decode(m.data);await pool.query("insert into fact_events(event_id,tenant_id,event_type,occurred_at,payload) values($1,$2,$3,$4,$5::jsonb) on conflict do nothing",[e.eventId,e.tenantId,e.eventType,e.occurredAt,JSON.stringify(e.payload)]);}
+import type{DomainEvent}from"@raeburn/events";import{consumeDurable,minimiseEventPayload,pool}from"@raeburn/service-kit";
+await consumeDurable(">", "analytics-facts", async(e:DomainEvent)=>{
+ await pool.query("insert into fact_events(event_id,tenant_id,event_type,occurred_at,payload) values($1,$2,$3,$4,$5::jsonb) on conflict do nothing",[e.eventId,e.tenantId,e.eventType,e.occurredAt,JSON.stringify(minimiseEventPayload(e.payload))]);
+});

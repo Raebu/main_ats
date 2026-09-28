@@ -1,9 +1,7 @@
 import{randomUUID}from"node:crypto";
-import{JSONCodec}from"nats";
 import type{DomainEvent}from"@raeburn/events";
-import{eventBus,pool,serviceAuthHeaders}from"@raeburn/service-kit";
+import{consumeDurable,pool,serviceAuthHeaders}from"@raeburn/service-kit";
 
-const bus=await eventBus(),codec=JSONCodec<DomainEvent>();
 const SEARCH_URL=process.env.SEARCH_URL||"http://localhost:4125";
 const NOTIFICATIONS_URL=process.env.NOTIFICATIONS_URL||"http://localhost:4112";
 
@@ -37,11 +35,4 @@ async function runSavedSearchAlerts(){
 setInterval(()=>void runSavedSearchAlerts(),60000).unref();
 void runSavedSearchAlerts();
 
-const sub=bus.subscribe(">");
-for await(const m of sub){
- const e=codec.decode(m.data),p:any=e.payload||{};
- try{
-  if(e.eventType.startsWith("candidate.")&&p.id)await indexCandidate(e,p);
-  if(e.eventType.startsWith("job.")&&p.id)await indexJob(e,p);
- }catch(err){console.error(JSON.stringify({service:"search-worker",event:"index_failed",eventId:e.eventId,eventType:e.eventType,error:String(err)}));}
-}
+await consumeDurable(">","search-index",async(e:DomainEvent)=>{const p:any=e.payload||{};try{if(e.eventType.startsWith("candidate.")&&p.id)await indexCandidate(e,p);if(e.eventType.startsWith("job.")&&p.id)await indexJob(e,p);}catch(err){console.error(JSON.stringify({service:"search-worker",event:"index_failed",eventId:e.eventId,eventType:e.eventType,error:String(err)}));throw err;}});

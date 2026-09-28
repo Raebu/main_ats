@@ -1,12 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { JSONCodec } from "nats";
 import nodemailer from "nodemailer";
 import type { DomainEvent } from "@raeburn/events";
 import { createEvent, Events } from "@raeburn/events";
-import { eventBus, pool, serviceAuthHeaders, withTransaction, writeOutbox } from "@raeburn/service-kit";
+import { consumeDurable, pool, serviceAuthHeaders, withTransaction, writeOutbox } from "@raeburn/service-kit";
 
-const bus = await eventBus();
-const codec = JSONCodec<DomainEvent>();
 const tx = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT || 587),
@@ -79,10 +76,7 @@ async function sendMessage(
 }
 
 async function handle(subject: string) {
-  const sub = bus.subscribe(subject);
-
-  for await (const msg of sub) {
-    const e = codec.decode(msg.data);
+  await consumeDurable(subject, "communications-" + subject, async (e: DomainEvent) => {
     if ((await pool.query("select 1 from processed_events where event_id=$1", [e.eventId])).rowCount) continue;
 
     try {
@@ -193,8 +187,9 @@ async function handle(subject: string) {
           })
         );
       });
+      throw err;
     }
-  }
+  });
 }
 
 for (const subject of [
@@ -210,5 +205,5 @@ for (const subject of [
   "scheduler.candidate_reengagement.due.v1",
   "scheduler.candidate_application_anniversary.due.v1"
 ]) {
-  handle(subject);
+  void handle(subject);
 }

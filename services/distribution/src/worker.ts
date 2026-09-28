@@ -1,8 +1,7 @@
 import{randomUUID}from"node:crypto";
-import{JSONCodec}from"nats";
 import type{DomainEvent}from"@raeburn/events";
 import type{ConnectorJob,JobBoardConnector}from"@raeburn/connectors";
-import{eventBus,pool}from"@raeburn/service-kit";
+import{consumeDurable,pool}from"@raeburn/service-kit";
 import{indeedConnector}from"@raeburn/connector-indeed";
 import{linkedinConnector}from"@raeburn/connector-linkedin";
 import{adzunaConnector}from"@raeburn/connector-adzuna";
@@ -15,7 +14,7 @@ import{findAJobConnector}from"@raeburn/connector-find-a-job";
 import{universityConnector}from"@raeburn/connector-university";
 import{specialistConnector}from"@raeburn/connector-specialist";
 
-const bus=await eventBus(),codec=JSONCodec<DomainEvent>(),CAREERS=process.env.CAREERS_BASE_URL||"https://theraeburngroup.com";
+const CAREERS=process.env.CAREERS_BASE_URL||"https://theraeburngroup.com";
 const adapters:Record<string,JobBoardConnector>={indeed:indeedConnector,linkedin:linkedinConnector,adzuna:adzunaConnector,jooble:joobleConnector,reed:reedConnector,totaljobs:totaljobsConnector,"cv-library":cvLibraryConnector,glassdoor:glassdoorConnector,"find-a-job":findAJobConnector,university:universityConnector,specialist:specialistConnector};
 const builtIn=new Set(["raeburn-mainstream","google-jobs","json-feed","xml-feed","csv-feed"]);
 const wait=(seconds:number)=>Math.max(60,Math.min(21600,seconds));
@@ -60,7 +59,7 @@ async function upsert(tenantId:string,job:any,destination:string,action:"publish
  const {rows}=await pool.query("insert into publications(id,tenant_id,job_id,destination,status,provider_config,job_snapshot,cost_pence,currency) values($1,$2,$3,$4,'PENDING',$5::jsonb,$6::jsonb,$7,$8) on conflict(tenant_id,job_id,destination) do update set provider_config=excluded.provider_config,job_snapshot=excluded.job_snapshot,cost_pence=excluded.cost_pence,currency=excluded.currency,status='PENDING',updated_at=now() returning *",[randomUUID(),tenantId,job.id,destination,JSON.stringify(cfg),JSON.stringify(job),setting.cost_pence||0,setting.currency||"GBP"]);
  await execute(rows[0],action);
 }
-async function consume(subject:string){const sub=bus.subscribe(subject);for await(const msg of sub){const e=codec.decode(msg.data);if((await pool.query("select 1 from processed_events where event_id=$1",[e.eventId])).rowCount)continue;const job:any=e.payload,action=subject==="job.closed.v1"?"close":subject==="job.updated.v1"?"update":"publish";const enabled=(await pool.query("select provider from provider_settings where tenant_id=$1 and enabled=true",[e.tenantId])).rows.map((r:any)=>r.provider);const destinations=action==="close"?(await pool.query("select destination from publications where tenant_id=$1 and job_id=$2",[e.tenantId,job.id])).rows.map((r:any)=>r.destination):["raeburn-mainstream",...(job.audiences||[]).map((a:string)=>"gateway:"+a.toLowerCase()),"google-jobs","json-feed","xml-feed","csv-feed",...enabled];for(const d of[...new Set(destinations)])await upsert(e.tenantId,job,String(d),action);await pool.query("insert into processed_events(event_id) values($1) on conflict do nothing",[e.eventId]);}}
+async function consume(subject:string){await consumeDurable(subject,"distribution-"+subject,async(e:DomainEvent)=>{if((await pool.query("select 1 from processed_events where event_id=$1",[e.eventId])).rowCount)continue;const job:any=e.payload,action=subject==="job.closed.v1"?"close":subject==="job.updated.v1"?"update":"publish";const enabled=(await pool.query("select provider from provider_settings where tenant_id=$1 and enabled=true",[e.tenantId])).rows.map((r:any)=>r.provider);const destinations=action==="close"?(await pool.query("select destination from publications where tenant_id=$1 and job_id=$2",[e.tenantId,job.id])).rows.map((r:any)=>r.destination):["raeburn-mainstream",...(job.audiences||[]).map((a:string)=>"gateway:"+a.toLowerCase()),"google-jobs","json-feed","xml-feed","csv-feed",...enabled];for(const d of[...new Set(destinations)])await upsert(e.tenantId,job,String(d),action);await pool.query("insert into processed_events(event_id) values(if((await pool.query("select 1 from processed_events where event_id=$1",[e.eventId])).rowCount)continue;const job:any=e.payload,action=subject==="job.closed.v1"?"close":subject==="job.updated.v1"?"update":"publish";const enabled=(await pool.query("select provider from provider_settings where tenant_id=$1 and enabled=true",[e.tenantId])).rows.map((r:any)=>r.provider);const destinations=action==="close"?(await pool.query("select destination from publications where tenant_id=$1 and job_id=$2",[e.tenantId,job.id])).rows.map((r:any)=>r.destination):["raeburn-mainstream",...(job.audiences||[]).map((a:string)=>"gateway:"+a.toLowerCase()),"google-jobs","json-feed","xml-feed","csv-feed",...enabled];for(const d of[...new Set(destinations)])await upsert(e.tenantId,job,String(d),action);) on conflict do nothing",[e.eventId]);});}
 async function retryDue(){const{rows}=await pool.query("select * from publications where status='RETRYING' and next_attempt_at<=now() order by next_attempt_at limit 50 for update skip locked");for(const pub of rows)await execute(pub,"publish");}
 setInterval(()=>retryDue().catch(console.error),30000);
-consume("job.published.v1");consume("job.updated.v1");consume("job.closed.v1");
+void consume("job.published.v1");void consume("job.updated.v1");void consume("job.closed.v1");

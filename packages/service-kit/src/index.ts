@@ -198,8 +198,14 @@ export async function withRetry<T>(fn:()=>Promise<T>,options:{attempts?:number;b
   throw last;
 }
 export function redact(value:Record<string,unknown>){
-  const sensitive=new Set(["password","token","authorization","email","telephone","phone","cv","resume","coverNote"]);
-  return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,sensitive.has(k)? "[REDACTED]":v]));
+  const sensitive=/password|secret|token|authorization|email|telephone|phone|cv|resume|cover.?note|address|name|message|body|documenturl/i;
+  const walk=(input:unknown,key=""):unknown=>{
+    if(sensitive.test(key))return "[REDACTED]";
+    if(Array.isArray(input))return input.map(v=>walk(v,key));
+    if(input&&typeof input==="object")return Object.fromEntries(Object.entries(input as Record<string,unknown>).map(([k,v])=>[k,walk(v,k)]));
+    return input;
+  };
+  return walk(value) as Record<string,unknown>;
 }
 
 
@@ -286,3 +292,24 @@ export function installGracefulShutdown(service=SERVICE){
 }
 installGracefulShutdown();
 void startTelemetry();
+
+export async function processEventOnce(event:DomainEvent,handler:(client:pg.PoolClient)=>Promise<void>){
+  await pool.query(`create table if not exists event_inbox(
+    event_id text primary key,event_type text not null,correlation_id text not null,
+    first_seen_at timestamptz not null default now(),processed_at timestamptz
+  )`);
+  return withTransaction(async client=>{
+    const claimed=await client.query("insert into event_inbox(event_id,event_type,correlation_id) values($1,$2,$3) on conflict do nothing returning event_id",[event.eventId,event.eventType,event.correlationId]);
+    if(!claimed.rowCount)return false;
+    await handler(client);
+    await client.query("update event_inbox set processed_at=now() where event_id=$1",[event.eventId]);
+    return true;
+  });
+}
+export function minimiseEventPayload(payload:unknown){
+  if(!payload||typeof payload!=="object")return{};
+  const allow=new Set(["id","applicationId","application_id","jobId","job_id","candidateId","candidate_id","fromStage","toStage","stage","status","gateway","destination","source","audiences","attribution","campaignId","campaign_id","startsAt","starts_at","expiresAt","expires_at","reason","kind"]);
+  const source=payload as Record<string,unknown>,out:Record<string,unknown>={};
+  for(const[k,v]of Object.entries(source))if(allow.has(k))out[k]=v;
+  return out;
+}
