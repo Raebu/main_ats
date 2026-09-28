@@ -1,3 +1,5 @@
+data "cloudflare_ip_ranges" "edge" {}
+
 locals {
   prefix = "raeburn-talent-${var.environment}"
   tags = [
@@ -80,25 +82,25 @@ resource "digitalocean_firewall" "runtime" {
   inbound_rule {
     protocol         = "tcp"
     port_range       = "80"
-    source_addresses = ["0.0.0.0/0", "::/0"]
+    source_addresses = concat(data.cloudflare_ip_ranges.edge.ipv4_cidr_blocks, data.cloudflare_ip_ranges.edge.ipv6_cidr_blocks)
   }
 
   inbound_rule {
     protocol         = "tcp"
     port_range       = "443"
-    source_addresses = ["0.0.0.0/0", "::/0"]
+    source_addresses = concat(data.cloudflare_ip_ranges.edge.ipv4_cidr_blocks, data.cloudflare_ip_ranges.edge.ipv6_cidr_blocks)
   }
 
   outbound_rule {
     protocol              = "tcp"
     port_range            = "1-65535"
-    destination_addresses = ["0.0.0.0/0", "::/0"]
+    destination_addresses = var.internet_egress_cidrs
   }
 
   outbound_rule {
     protocol              = "udp"
     port_range            = "1-65535"
-    destination_addresses = ["0.0.0.0/0", "::/0"]
+    destination_addresses = var.internet_egress_cidrs
   }
 }
 
@@ -121,7 +123,7 @@ resource "digitalocean_firewall" "nats" {
   outbound_rule {
     protocol              = "tcp"
     port_range            = "1-65535"
-    destination_addresses = ["0.0.0.0/0", "::/0"]
+    destination_addresses = var.internet_egress_cidrs
   }
 }
 
