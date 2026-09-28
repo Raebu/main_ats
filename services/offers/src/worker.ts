@@ -1,3 +1,3 @@
-import{createEvent,Events}from"@raeburn/events";import{pool,withTransaction,writeOutbox}from"@raeburn/service-kit";
+import{createEvent,Events}from"@raeburn/events";import{pool,withTransaction,withWorkerLease,writeOutbox}from"@raeburn/service-kit";
 async function tick(){const rows=(await pool.query("select * from offers where status='ISSUED' and expires_at is not null and expires_at<=now() limit 100")).rows;for(const offer of rows){await withTransaction(async client=>{const r=(await client.query("update offers set status='EXPIRED',expired_at=now(),updated_at=now() where id=$1 and status='ISSUED' returning *",[offer.id])).rows[0];if(!r)return;await writeOutbox(client,createEvent({eventType:Events.offerExpired,eventVersion:1,producer:"offers",correlationId:offer.id,tenantId:offer.tenant_id,payload:r}));});}}
-setInterval(()=>tick().catch(console.error),60000);tick().catch(console.error);
+const run=()=>withWorkerLease("offer-expiry",tick).catch(console.error);setInterval(run,60000);void run();
