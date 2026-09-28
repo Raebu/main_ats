@@ -24,15 +24,15 @@ const published=await call(API,"/v1/jobs/public",{method:"GET",headers:{}});
 const jobs=Array.isArray(published)?published:(published.jobs||[]);
 if(!jobs.some(j=>j.id===job.id))throw new Error("published vacancy missing from public API");
 
+const requiredBuiltIns=["raeburn-mainstream","google-jobs","json-feed","xml-feed","csv-feed"];
 let publications=[];
-for(let attempt=0;attempt<40;attempt++){
+for(let attempt=0;attempt<80;attempt++){
   publications=await call(DISTRIBUTION,"/v1/distribution/jobs/"+job.id,{method:"GET",headers:{}});
-  if(publications.some(p=>p.destination==="raeburn-mainstream"&&p.status==="LIVE"))break;
+  if(requiredBuiltIns.every(destination=>publications.some(p=>p.destination===destination&&p.status==="LIVE")))break;
   await new Promise(resolve=>setTimeout(resolve,250));
 }
-if(!publications.some(p=>p.destination==="raeburn-mainstream"&&p.status==="LIVE"))throw new Error("distribution worker did not publish the first-party vacancy");
-for(const destination of["google-jobs","json-feed","xml-feed","csv-feed"]){
-  if(!publications.some(p=>p.destination===destination&&p.status==="LIVE"))throw new Error("missing live built-in distribution: "+destination);
+for(const destination of requiredBuiltIns){
+  if(!publications.some(p=>p.destination===destination&&p.status==="LIVE"))throw new Error("distribution worker did not finish built-in publication: "+destination);
 }
 const jsonFeed=await call(DISTRIBUTION,"/v1/distribution/feeds/json",{method:"GET",headers:{}});
 if(!(Array.isArray(jsonFeed)?jsonFeed:[]).some(j=>j.id===job.id))throw new Error("JSON distribution feed missing published vacancy");
