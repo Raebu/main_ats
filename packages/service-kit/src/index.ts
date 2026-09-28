@@ -266,14 +266,20 @@ export async function eventConsumerStats(){
   }catch{return[] as Array<{name:string;pending:number;ackPending:number;redelivered:number;delivered:number;ackFloor:number}>;}
 }
 export async function metricsText(service=SERVICE){
-  let dbLatency=-1,outbox=-1;
+  let dbLatency=-1,outbox=-1,outboxOldestSeconds=0,slowQueries=-1;
   try{const started=Date.now();await pool.query("select 1");dbLatency=Date.now()-started;}catch{}
-  try{outbox=Number((await pool.query("select count(*)::int n from outbox_events where published_at is null")).rows[0]?.n||0);}catch{}
+  try{const row=(await pool.query("select count(*)::int n,coalesce(extract(epoch from (now()-min(created_at)))::int,0) oldest from outbox_events where published_at is null")).rows[0];outbox=Number(row?.n||0);outboxOldestSeconds=Number(row?.oldest||0);}catch{}
+  try{slowQueries=Number((await pool.query("select count(*)::int n from pg_stat_activity where datname=current_database() and state='active' and pid<>pg_backend_pid() and now()-query_start > make_interval(secs=>$1)",[Number(process.env.SLOW_QUERY_SECONDS||5)])).rows[0]?.n||0);}catch{}
   const consumers=await eventConsumerStats();
   const lines=[
     "# TYPE raeburn_service_up gauge",`raeburn_service_up{service="${service}"} 1`,
     "# TYPE raeburn_database_latency_ms gauge",`raeburn_database_latency_ms{service="${service}"} ${dbLatency}`,
     "# TYPE raeburn_outbox_backlog gauge",`raeburn_outbox_backlog{service="${service}"} ${outbox}`,
+    "# TYPE raeburn_outbox_oldest_seconds gauge",`raeburn_outbox_oldest_seconds{service="${service}"} ${outboxOldestSeconds}`,
+    "# TYPE raeburn_database_slow_queries gauge",`raeburn_database_slow_queries{service="${service}"} ${slowQueries}`,
+    "# TYPE raeburn_database_pool_total gauge",`raeburn_database_pool_total{service="${service}"} ${pool.totalCount}`,
+    "# TYPE raeburn_database_pool_idle gauge",`raeburn_database_pool_idle{service="${service}"} ${pool.idleCount}`,
+    "# TYPE raeburn_database_pool_waiting gauge",`raeburn_database_pool_waiting{service="${service}"} ${pool.waitingCount}`,
     "# TYPE raeburn_process_uptime_seconds gauge",`raeburn_process_uptime_seconds{service="${service}"} ${Math.floor(process.uptime())}`
   ];
   lines.push("# TYPE raeburn_event_consumer_pending gauge","# TYPE raeburn_event_consumer_ack_pending gauge","# TYPE raeburn_event_consumer_redelivered gauge");
