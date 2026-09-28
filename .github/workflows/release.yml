@@ -98,12 +98,15 @@ jobs:
           ref: ${{ needs.qualify.outputs.sha }}
       - name: Deploy immutable release to staging
         env:
-          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
-          DEPLOY_WEBHOOK_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
-          RELEASE_SHA: ${{ needs.qualify.outputs.sha }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          RUNTIME_ENV_FILE: ${{ secrets.RUNTIME_ENV_FILE }}
           UNIT_IMAGE_REF: ${{ needs.image.outputs.unit_image_ref }}
           SCANNER_IMAGE_REF: ${{ needs.image.outputs.scanner_image_ref }}
-        run: node scripts/deploy-release.mjs staging
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/deploy-ssh.sh
       - name: Staging smoke test
         env:
           SMOKE_BASE_URL: ${{ vars.BASE_URL }}
@@ -126,13 +129,15 @@ jobs:
           ref: ${{ needs.qualify.outputs.sha }}
       - name: Progressive production deployment
         env:
-          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
-          DEPLOY_WEBHOOK_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
-          RELEASE_SHA: ${{ needs.qualify.outputs.sha }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          RUNTIME_ENV_FILE: ${{ secrets.RUNTIME_ENV_FILE }}
           UNIT_IMAGE_REF: ${{ needs.image.outputs.unit_image_ref }}
           SCANNER_IMAGE_REF: ${{ needs.image.outputs.scanner_image_ref }}
-          DEPLOY_STRATEGY: blue-green
-        run: node scripts/deploy-release.mjs production
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/deploy-ssh.sh
       - name: Production smoke test
         id: smoke
         continue-on-error: true
@@ -142,13 +147,16 @@ jobs:
       - name: Automatic rollback
         if: steps.smoke.outcome == 'failure'
         env:
-          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
-          DEPLOY_WEBHOOK_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
-          RELEASE_SHA: ${{ needs.qualify.outputs.sha }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          RUNTIME_ENV_FILE: ${{ secrets.RUNTIME_ENV_FILE }}
           UNIT_IMAGE_REF: ${{ needs.image.outputs.unit_image_ref }}
           SCANNER_IMAGE_REF: ${{ needs.image.outputs.scanner_image_ref }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ROLLBACK: "true"
-        run: node scripts/deploy-release.mjs production
+        run: bash scripts/deploy-ssh.sh
       - if: steps.smoke.outcome == 'failure'
         run: exit 1
 
