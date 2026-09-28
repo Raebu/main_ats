@@ -109,10 +109,14 @@ app.post("/v1/identity/login",async c=>{
   await pool.query("update users set last_login_at=now() where id=$1",[row.id]);const session=await issueSession({id:row.id,email:row.email,displayName:row.display_name},m,meta);
   await securityEvent({userId:row.id,email,eventType:"LOGIN_SUCCEEDED",...hashes});return c.json({...session,user:{id:row.id,email:row.email,displayName:row.display_name,roles:m.map((x:any)=>x.role)}});
  }
+ const bootstrapEmail=(process.env.BOOTSTRAP_ADMIN_EMAIL||"careers@theraeburngroup.com").toLowerCase();
+ if(!(await bootstrapDisabled())&&email===bootstrapEmail&&b.password===process.env.BOOTSTRAP_ADMIN_PASSWORD){
+  const token=await signClaims({sub:"bootstrap-admin",email:b.email,displayName:"Bootstrap Administrator",tenantId:tenant(),roles:["PLATFORM_ADMIN"],permissions:["*"],organisationIds:["*"],tokenType:"access"},"30m");
+  await securityEvent({email,eventType:"BOOTSTRAP_LOGIN_SUCCEEDED",...hashes});
+  return c.json({accessToken:token,expiresIn:1800,user:{id:"bootstrap-admin",email:b.email,displayName:"Bootstrap Administrator",roles:["PLATFORM_ADMIN"]}});
+ }
  await securityEvent({userId:row?.id||null,email,eventType:"LOGIN_FAILED",...hashes});
  if(row){const n=Number(row.failed_login_count||0)+1;await pool.query("update users set failed_login_count=$2,locked_until=case when $2>=8 then now()+interval '15 minutes' else locked_until end where id=$1",[row.id,n]);}
- const bootstrapEmail=(process.env.BOOTSTRAP_ADMIN_EMAIL||"careers@theraeburngroup.com").toLowerCase();
- if(!(await bootstrapDisabled())&&email===bootstrapEmail&&b.password===process.env.BOOTSTRAP_ADMIN_PASSWORD){const token=await signClaims({sub:"bootstrap-admin",email:b.email,displayName:"Bootstrap Administrator",tenantId:tenant(),roles:["PLATFORM_ADMIN"],permissions:["*"],organisationIds:["*"],tokenType:"access"},"30m");return c.json({accessToken:token,expiresIn:1800,user:{id:"bootstrap-admin",email:b.email,displayName:"Bootstrap Administrator",roles:["PLATFORM_ADMIN"]}});}
  return c.json({code:"INVALID_CREDENTIALS",message:"Invalid credentials"},401);
 });
 
