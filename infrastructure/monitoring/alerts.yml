@@ -62,3 +62,19 @@ groups:
         for: 10m
         labels: {severity: warning}
         annotations: {summary: "Average malware scan latency is above 15 seconds"}
+
+      - alert: TalentSlowQueries
+        expr: raeburn_database_slow_queries > 0
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "A Raeburn Talent database has sustained long-running queries"}
+      - alert: TalentDatabasePoolWaiting
+        expr: raeburn_database_pool_waiting > 0
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: "Database pool requests are waiting for a connection"}
+      - alert: TalentOutboxOldestTooOld
+        expr: raeburn_outbox_oldest_seconds > 120
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: "Oldest transactional outbox event has been pending for more than two minutes"}
