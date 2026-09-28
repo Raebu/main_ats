@@ -94,13 +94,37 @@ resource "digitalocean_firewall" "runtime" {
   outbound_rule {
     protocol              = "tcp"
     port_range            = "1-65535"
-    destination_addresses = var.internet_egress_cidrs
+    destination_addresses = [digitalocean_vpc.platform.ip_range]
+  }
+
+  outbound_rule {
+    protocol              = "tcp"
+    port_range            = "53"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
   }
 
   outbound_rule {
     protocol              = "udp"
-    port_range            = "1-65535"
-    destination_addresses = var.internet_egress_cidrs
+    port_range            = "53"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+
+  outbound_rule {
+    protocol              = "tcp"
+    port_range            = "80"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+
+  outbound_rule {
+    protocol              = "tcp"
+    port_range            = "443"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+
+  outbound_rule {
+    protocol              = "tcp"
+    port_range            = "587"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
   }
 }
 
@@ -123,7 +147,7 @@ resource "digitalocean_firewall" "nats" {
   outbound_rule {
     protocol              = "tcp"
     port_range            = "1-65535"
-    destination_addresses = var.internet_egress_cidrs
+    destination_addresses = [digitalocean_vpc.platform.ip_range]
   }
 }
 
