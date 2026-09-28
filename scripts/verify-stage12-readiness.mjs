@@ -1,6 +1,6 @@
 import fs from"node:fs";
 const failures=[];const expect=(path,needles=[])=>{if(!fs.existsSync(path)){failures.push("missing "+path);return;}const b=fs.readFileSync(path,"utf8");for(const n of needles)if(!b.includes(n))failures.push(path+" missing "+n);};
-expect("services/platform/src/index.ts",["/v1/platform/tenants","entitlements","subscriptions","usage","billing","domains","api-keys","support","/sla/","/regions"]);
+expect("services/platform/src/index.ts",["/v1/platform/tenants","entitlements","subscriptions","usage","billing","domains","api-keys","api-keys/introspect","support","/sla/","/regions"]);
 expect("services/platform/migrations/001_stage12_commercialisation.sql",["platform_tenants","usage_meters","custom_domains","customer_api_keys","sla_policies"]);
 expect("apps/talent-admin/components/PlatformWorkspace.tsx",["Tenant provisioning & branding","Commercial controls","Customer API key","Customer support"]);
 expect("services/malware-scanner/src/index.ts",["clamscan","/scan","file_too_large_for_scanner"]);
@@ -13,6 +13,7 @@ expect("infrastructure/production/deployment-units.json",["edge-api","recruitmen
 expect("scripts/verify-data-parity.mjs",["LEGACY_DATABASE_URL","delta"]);
 expect("scripts/dual-read-compare.mjs",["LEGACY_SNAPSHOT_URL","MIGRATION_READ_SECRET","missingJobs"]);
 expect("apps/careers-web/lib/api.ts",["CAREERS_ROUTING_SECRET","x-careers-signature","resolve-domain"]);
+expect("services/api-gateway/src/index.ts",["rt_live_","api-keys/introspect","ENFORCE_TENANT_ENTITLEMENTS","api.requests"]);
 expect(".github/workflows/release.yml",["Dockerfile.unit","Dockerfile.malware-scanner","UNIT_IMAGE_REF","SCANNER_IMAGE_REF"]);
 expect(".github/workflows/security.yml",["raeburn-talent-unit:ci","raeburn-talent-scanner:ci"]);
 expect("scripts/verify-stage12-live.mjs",["penetrationTestPassed","legacyRoutesRetired","dataParity"]);
