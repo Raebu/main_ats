@@ -42,7 +42,7 @@ resource "digitalocean_droplet" "runtime" {
     #!/bin/bash
     set -eux
     apt-get update
-    apt-get install -y docker.io ca-certificates curl
+    apt-get install -y docker.io docker-compose-v2 ca-certificates curl
     systemctl enable --now docker
     mkdir -p /opt/raeburn-talent
   EOF
