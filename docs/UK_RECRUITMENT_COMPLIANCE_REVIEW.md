@@ -25,6 +25,9 @@ Official references:
 
 ## 2. Data protection in recruitment
 
+As at 28 September 2026, the ICO states that all data-protection provisions of the Data (Use and Access) Act 2025 are in force. The platform therefore treats the DUAA-amended UK GDPR/DPA/PECR framework as the current baseline rather than as a future change. Current government guidance also requires organisations to provide a way for individuals to raise data-protection complaints and to inform them of the outcome; Raeburn Talent now keeps an auditable privacy-complaints register with acknowledgement, ownership, outcome and resolution evidence.
+
+
 The ICO's recruitment and selection guidance covers UK GDPR/Data Protection Act obligations across sourcing, applications, assessment, vetting, retention and deletion. The ICO notes that recruitment can involve sensitive information and multiple organisations/providers.
 
 Raeburn Talent controls:
@@ -46,6 +49,7 @@ Raeburn Talent controls:
 Official references:
 - https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/employment/recruitment-and-selection/
 - https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/employment/
+- https://ico.org.uk/about-the-ico/what-we-do/legislation-we-cover/data-use-and-access-act-2025/
 
 **Change watch:** the ICO states that recruitment guidance is being updated for the Data (Use and Access) Act 2025, with updated recruitment and selection guidance expected in Winter 2026. This control review must therefore be revisited when final guidance is published.
 
@@ -77,6 +81,9 @@ Official references:
 
 ## 4. Agency workers and recruitment suppliers
 
+The Fair Work Agency began operating in April 2026 and is now the state regulator for the private recruitment sector in England, Scotland and Wales. Current 2026 GOV.UK guidance for employment agencies/businesses includes the Conduct of Employment Agencies and Employment Businesses Regulations 2003 as well as the Agency Workers Regulations 2010. Raeburn Talent's supplier review therefore records evidence not only for AWR day-one/qualifying-period controls, but also relevant work-seeker/hirer information, assignment particulars, known health-and-safety risks and required qualifications where applicable.
+
+
 For agency engagements the system records supplier approval, terms, vacancy access, ownership periods, submissions, placement/invoice history, supplier performance and an explicit compliance-review record.
 
 The compliance review template prompts the reviewer to consider:
@@ -89,6 +96,7 @@ The compliance review template prompts the reviewer to consider:
 Official references:
 - https://www.gov.uk/government/publications/agency-workers-regulations-2010-guidance-for-recruiters/agency-workers-regulations-2010-guidance
 - https://www.gov.uk/government/collections/information-and-guidance-for-employment-businesses-and-agencies
+- https://www.gov.uk/government/publications/conduct-regulations-2003-guidance-for-employment-agencies-and-employment-businesses
 
 ## 5. Contractors and off-payroll working
 
@@ -128,7 +136,7 @@ The sign-off record stores reviewer name, role, organisation, evidence reference
 
 ## 8. Current-source verification
 
-As of 28 September 2026, GOV.UK Agency Workers Regulations guidance shows a last update of 25 March 2026, HMRC's Understanding off-payroll working (IR35) guidance shows a last update of 26 February 2026, and the ICO continues to label its recruitment and selection guidance as under review following the Data (Use and Access) Act, with final recruitment guidance planned for Winter 2026. The platform therefore preserves this review as a versioned control record and requires re-review when the ICO final guidance is published.
+As of 28 September 2026, GOV.UK Agency Workers Regulations guidance shows a last update of 25 March 2026, the Conduct Regulations guidance was updated on 22 June 2026, the Fair Work Agency collection was published on 22 June 2026, HMRC's Understanding off-payroll working (IR35) guidance shows a last update of 26 February 2026, and the ICO states that all DUAA data-protection provisions are in force while its recruitment and selection guidance remains under review with final updated recruitment guidance planned for Winter 2026. The platform therefore preserves this review as a versioned control record and requires re-review when the ICO final guidance is published.
 
 ## 9. Review triggers
 
