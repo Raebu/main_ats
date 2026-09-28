@@ -166,14 +166,6 @@ jobs:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/deploy-ssh.sh
-      - name: Close deploy-only SSH access
-        if: always()
-        run: |
-          set +e
-          ip=$(curl -fsS https://api.ipify.org)
-          fw=$(doctl compute firewall list --format ID,Name --no-header | awk '$2=="raeburn-talent-production-runtime-fw"{print $1}')
-          [ -n "$fw" ] && doctl compute firewall remove-rules "$fw" --inbound-rules "protocol:tcp,ports:22,address:$ip/32"
-          exit 0
       - name: Production smoke test
         id: smoke
         continue-on-error: true
@@ -193,6 +185,14 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ROLLBACK: "true"
         run: bash scripts/deploy-ssh.sh
+      - name: Close deploy-only SSH access
+        if: always()
+        run: |
+          set +e
+          ip=$(curl -fsS https://api.ipify.org)
+          fw=$(doctl compute firewall list --format ID,Name --no-header | awk '$2=="raeburn-talent-production-runtime-fw"{print $1}')
+          [ -n "$fw" ] && doctl compute firewall remove-rules "$fw" --inbound-rules "protocol:tcp,ports:22,address:$ip/32"
+          exit 0
       - if: steps.smoke.outcome == 'failure'
         run: exit 1
 
