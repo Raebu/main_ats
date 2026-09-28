@@ -1,5 +1,5 @@
-import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{WorkflowStage}from"@raeburn/contracts";import{canTransition}from"@raeburn/policy";import{createEvent,Events}from"@raeburn/events";import{context,health,pool,withTransaction,writeOutbox,serviceAuthHeaders}from"@raeburn/service-kit";
-const app=new Hono(),APPLICATIONS=process.env.APPLICATIONS_URL||"http://localhost:4103";
+import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{WorkflowStage}from"@raeburn/contracts";import{canTransition}from"@raeburn/policy";import{createEvent,Events}from"@raeburn/events";import{context,health,pool,withTransaction,writeOutbox,serviceAuthHeaders,installServiceRuntime}from"@raeburn/service-kit";
+const app=new Hono();installServiceRuntime(app,"workflow");const APPLICATIONS=process.env.APPLICATIONS_URL||"http://localhost:4103";
 const SLA_HOURS:Record<string,number>={APPLIED:24,SCREENING:48,REVIEW:48,SHORTLIST:72,INTERVIEW:120,FINAL_INTERVIEW:72,OFFER:72,ON_HOLD:168,TALENT_POOL:720};
 app.get("/health",async c=>c.json(await health("workflow")));
 app.get("/v1/workflow/:applicationId/history",async c=>{const x=context(c.req.raw.headers);return c.json((await pool.query("select * from stage_history where tenant_id=$1 and application_id=$2 order by occurred_at desc",[x.tenantId,c.req.param("applicationId")])).rows);});
