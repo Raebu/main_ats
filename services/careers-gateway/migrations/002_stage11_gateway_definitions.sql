@@ -1,0 +1,1 @@
+create table if not exists gateway_definitions(tenant_id text not null,gateway_id text not null,name text not null,description text,enabled boolean not null default true,sort_order int not null default 0,config jsonb not null default '{}',updated_by text,updated_at timestamptz not null default now(),primary key(tenant_id,gateway_id));
