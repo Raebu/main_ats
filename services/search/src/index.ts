@@ -1,9 +1,9 @@
 import{randomUUID}from"node:crypto";
 import{serve}from"@hono/node-server";
 import{Hono}from"hono";
-import{context,health,pool}from"@raeburn/service-kit";
+import{context,health,pool,installServiceRuntime}from"@raeburn/service-kit";
 
-const app=new Hono();
+const app=new Hono();installServiceRuntime(app,"search");
 const typedKeys=["skill","employer","title","location","qualification","language","source","recruiter","stage","pool"] as const;
 type Filters=Record<string,string|string[]|number|boolean>;
 
