@@ -1,0 +1,6 @@
+environment="staging"
+region="lon1"
+postgres_nodes=1
+postgres_size="db-s-1vcpu-1gb"
+runtime_size="s-2vcpu-4gb"
+nats_size="s-1vcpu-2gb"
