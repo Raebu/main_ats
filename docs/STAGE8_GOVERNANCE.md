@@ -3,8 +3,8 @@
 Stage 8 converts governance requirements into enforceable application controls.
 
 ## Identity and access
-- TOTP MFA plus WebAuthn/passkeys.
-- Generic OIDC/PKCE SSO compatible with Google Workspace and Microsoft Entra ID.
+- TOTP MFA plus WebAuthn/passkeys with challenge-to-user binding and required WebAuthn user verification.
+- Generic OIDC/PKCE SSO compatible with Google Workspace and Microsoft Entra ID; unknown users fail closed unless administrator-controlled auto-provisioning is explicitly enabled, and Google identities require a verified email.
 - 15-minute access tokens and rotating 30-day refresh tokens.
 - RS256 signing support, JWKS publishing and multiple public verification keys for key rotation.
 - Production readiness fails when asymmetric signing/encryption/WebAuthn configuration is absent.
@@ -17,16 +17,16 @@ Stage 8 converts governance requirements into enforceable application controls.
 - Public routes force the configured public tenant rather than trusting caller-supplied tenant headers.
 - Tenant-derived encryption helpers and tenant-scoped MFA encryption.
 - Service identity/key issuance and introspection are available for deployment-level service authentication.
-- Secrets can be injected by environment variable or `*_FILE` mount from a platform secret manager.
+- Secrets can be injected by environment variable or `*_FILE` mount from a platform secret manager; production tenant/MFA encryption fails closed rather than using development fallback keys.
 
 ## Privacy
 - Versioned/publishable recruitment notices.
 - Lawful-basis and legitimate-interest registers.
 - Records of processing activities.
 - Subprocessor, data-map and data-residency registers.
-- Purpose-specific consent event history.
+- Purpose-specific consent event history, including candidate-portal talent-pool and recruitment-marketing grant/withdrawal events.
 - Careers consent UI separates essential processing, optional analytics and recruitment marketing.
-- Privacy requests require identity verification and approval before execution.
+- Privacy requests require identity verification and approval before execution; candidate-portal requests carry the authenticated portal session into the verification record.
 - DSAR/anonymisation/deletion fulfilment remains auditable.
 - DSAR result payload is tenant encrypted and automatically expires.
 - Human-readable HTML and machine-readable JSON export.
@@ -35,8 +35,8 @@ Stage 8 converts governance requirements into enforceable application controls.
 
 ## Fairness and responsible recruitment
 - Configurable decision-reason taxonomy.
-- Later-stage rejection requires reason, rationale and evidence.
-- Blind candidate projection hides direct identity/contact fields.
+- Later-stage rejection and the final hire transition require configured reason, rationale and job-related supporting evidence.
+- Blind-review policy is resolved by vacancy → organisation → tenant scope and enforced in recruiter application detail, comparison and hiring-manager review screens; direct identity/contact fields and candidate documents are withheld while active.
 - Consistency-audit records.
 - Aggregated fairness monitoring with minimum cohort size.
 - AI is advisory only and cannot autonomously hire/reject.
@@ -48,11 +48,12 @@ Stage 8 converts governance requirements into enforceable application controls.
 - Sensitive reads of candidate, document, privacy, offer, audit and AI-governance data are audited.
 - Identity security events are retained with hashed network/device signals.
 - Privacy actions and exports have their own audit trail.
-- Hiring decisions have independent decision-evidence records.
+- Hiring and later-stage rejection decisions have independent decision-evidence records with actor, reason, rationale and evidence references.
 - Governance console surfaces current security, privacy, fairness, AI and agency/contractor evidence.
 
-## Deployment gates
-Application code is ready for the controls above, but production still requires secrets/provider configuration:
+## Stage 8 completion gate
+The application-side Stage 8 controls are implemented and enforced. Production activation still requires environment-specific secrets/provider configuration and accountable organisational sign-off; those are deployment evidence, not substitutes for the controls above:
+
 - inject RS256 private key and current/previous public keys;
 - configure Google Workspace and/or Microsoft Entra OIDC client values where SSO is enabled;
 - configure WebAuthn RP ID/origin;
