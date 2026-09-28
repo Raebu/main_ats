@@ -1,10 +1,12 @@
+import fs from"node:fs";
 const environment=process.argv[2];
 if(!["staging","production"].includes(environment))throw new Error("environment must be staging or production");
 const url=process.env.DEPLOY_WEBHOOK_URL,token=process.env.DEPLOY_WEBHOOK_TOKEN,sha=process.env.RELEASE_SHA;
-const legacyImage=process.env.IMAGE,imageRef=process.env.IMAGE_REF||(legacyImage&&sha?legacyImage+":"+sha:undefined);
-if(!url||!token||!sha||!imageRef)throw new Error("release deployment environment is not configured");
-const payload={environment,sha,image:imageRef,strategy:process.env.DEPLOY_STRATEGY||"rolling",rollback:process.env.ROLLBACK==="true"};
+const unitImageRef=process.env.UNIT_IMAGE_REF,scannerImageRef=process.env.SCANNER_IMAGE_REF;
+if(!url||!token||!sha||!unitImageRef||!scannerImageRef)throw new Error("release deployment environment is not configured");
+const units=JSON.parse(fs.readFileSync("infrastructure/production/deployment-units.json","utf8"));
+const payload={environment,sha,images:{unit:unitImageRef,malwareScanner:scannerImageRef},deploymentUnits:units,strategy:process.env.DEPLOY_STRATEGY||"rolling",rollback:process.env.ROLLBACK==="true"};
 const response=await fetch(url,{method:"POST",headers:{"content-type":"application/json","authorization":"Bearer "+token},body:JSON.stringify(payload)});
 const body=await response.text();
 if(!response.ok)throw new Error("deployment endpoint failed "+response.status+" "+body.slice(0,500));
-console.log(JSON.stringify({ok:true,environment,sha,image:imageRef,strategy:payload.strategy,rollback:payload.rollback}));
+console.log(JSON.stringify({ok:true,environment,sha,images:payload.images,unitCount:units.units.length,strategy:payload.strategy,rollback:payload.rollback}));

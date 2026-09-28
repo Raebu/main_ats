@@ -1,0 +1,7 @@
+{
+  "environment":"production",
+  "infrastructure":{"managedPostgres":false,"natsPersistent":false,"r2Private":false,"malwareScanner":false,"smtp":false,"cloudflare":false,"oauth":false,"backups":false,"monitoring":false,"alerting":false,"stagingParity":false},
+  "cutover":{"rootTrafficMigrated":false,"dataParity":false,"dualReadValidated":false,"legacyRoutesRetired":false,"duplicatePrismaRemoved":false,"transitionalArchived":false,"deploymentUnitsConsolidated":true},
+  "commercialisation":{"tenantProvisioning":true,"customerBranding":true,"entitlementsSubscriptions":true,"usageMetering":true,"billing":true,"customerSupport":true,"customDomains":true,"onboardingOffboarding":true,"regionalDeployment":true,"customerApiKeys":true,"slaTooling":true,"externalDocumentation":true},
+  "operations":{"runbooks":true,"incidentResponse":true,"securityContacts":true,"serviceOwners":true,"onCall":false,"slos":true,"changeManagement":true,"postmortems":true,"releaseProcess":true,"capacityCostMonitoring":true,"penetrationTestPassed":false,"backupRestoreDrill":false}
+}

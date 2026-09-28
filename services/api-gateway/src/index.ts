@@ -1,17 +1,18 @@
-import{createHash,randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{requiredPermission,hasPermission}from"@raeburn/policy";import{serviceAuthHeaders,installServiceRuntime}from"@raeburn/service-kit";
-const app=new Hono();installServiceRuntime(app,"api-gateway");const IDENTITY=process.env.IDENTITY_URL||"http://localhost:4109",AUDIT=process.env.AUDIT_URL||"http://localhost:4111";
+import{createHash,createHmac,randomUUID,timingSafeEqual}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{requiredPermission,hasPermission}from"@raeburn/policy";import{serviceAuthHeaders,installServiceRuntime}from"@raeburn/service-kit";
+const app=new Hono();installServiceRuntime(app,"api-gateway");const IDENTITY=process.env.IDENTITY_URL||"http://localhost:4109",AUDIT=process.env.AUDIT_URL||"http://localhost:4111",PLATFORM=process.env.PLATFORM_URL||"http://localhost:4129";
 const rate=new Map<string,{count:number;reset:number}>();
 const maxBody=Number(process.env.MAX_REQUEST_BYTES||12*1024*1024);
 const allowedOrigins=(process.env.CORS_ORIGINS||"https://theraeburngroup.com,https://talent.theraeburngroup.com").split(",").map(x=>x.trim()).filter(Boolean);
 function rateAllowed(key:string,limit:number){const now=Date.now(),existing=rate.get(key);if(!existing||existing.reset<=now){rate.set(key,{count:1,reset:now+60000});return true;}existing.count++;return existing.count<=limit;}
 
 const routes=[
- ["/v1/jobs",process.env.JOBS_URL||"http://localhost:4101"],["/v1/candidates",process.env.CANDIDATES_URL||"http://localhost:4102"],["/v1/applications",process.env.APPLICATIONS_URL||"http://localhost:4103"],["/v1/attribution",process.env.ATTRIBUTION_URL||"http://localhost:4104"],["/v1/workflow",process.env.WORKFLOW_URL||"http://localhost:4105"],["/v1/documents",process.env.DOCUMENTS_URL||"http://localhost:4106"],["/v1/communications",process.env.COMMUNICATIONS_URL||"http://localhost:4107"],["/v1/distribution",process.env.DISTRIBUTION_URL||"http://localhost:4108"],["/v1/identity",IDENTITY],["/v1/organisations",process.env.ORGANISATIONS_URL||"http://localhost:4110"],["/v1/audit",process.env.AUDIT_URL||"http://localhost:4111"],["/v1/notifications",process.env.NOTIFICATIONS_URL||"http://localhost:4112"],["/v1/privacy",process.env.PRIVACY_URL||"http://localhost:4113"],["/v1/interviews",process.env.INTERVIEWS_URL||"http://localhost:4114"],["/v1/assessments",process.env.ASSESSMENTS_URL||"http://localhost:4115"],["/v1/offers",process.env.OFFERS_URL||"http://localhost:4116"],["/v1/talent-pools",process.env.TALENT_POOLS_URL||"http://localhost:4117"],["/v1/careers-gateways",process.env.CAREERS_GATEWAY_URL||"http://localhost:4118"],["/v1/config",process.env.CONFIGURATION_URL||"http://localhost:4119"],["/v1/flags",process.env.FEATURE_FLAGS_URL||"http://localhost:4120"],["/v1/campaigns",process.env.CAMPAIGNS_URL||"http://localhost:4121"],["/v1/hooks",process.env.WEBHOOKS_URL||"http://localhost:4122"],["/v1/integrations",process.env.INTEGRATIONS_URL||"http://localhost:4123"],["/v1/analytics",process.env.ANALYTICS_URL||"http://localhost:4124"],["/v1/search",process.env.SEARCH_URL||"http://localhost:4125"],["/v1/intelligence",process.env.INTELLIGENCE_URL||"http://localhost:4126"],["/v1/scheduled-actions",process.env.SCHEDULER_URL||"http://localhost:4127"],["/v1/onboarding",process.env.ONBOARDING_URL||"http://localhost:4128"]
+ ["/v1/jobs",process.env.JOBS_URL||"http://localhost:4101"],["/v1/candidates",process.env.CANDIDATES_URL||"http://localhost:4102"],["/v1/applications",process.env.APPLICATIONS_URL||"http://localhost:4103"],["/v1/attribution",process.env.ATTRIBUTION_URL||"http://localhost:4104"],["/v1/workflow",process.env.WORKFLOW_URL||"http://localhost:4105"],["/v1/documents",process.env.DOCUMENTS_URL||"http://localhost:4106"],["/v1/communications",process.env.COMMUNICATIONS_URL||"http://localhost:4107"],["/v1/distribution",process.env.DISTRIBUTION_URL||"http://localhost:4108"],["/v1/identity",IDENTITY],["/v1/organisations",process.env.ORGANISATIONS_URL||"http://localhost:4110"],["/v1/audit",process.env.AUDIT_URL||"http://localhost:4111"],["/v1/notifications",process.env.NOTIFICATIONS_URL||"http://localhost:4112"],["/v1/privacy",process.env.PRIVACY_URL||"http://localhost:4113"],["/v1/interviews",process.env.INTERVIEWS_URL||"http://localhost:4114"],["/v1/assessments",process.env.ASSESSMENTS_URL||"http://localhost:4115"],["/v1/offers",process.env.OFFERS_URL||"http://localhost:4116"],["/v1/talent-pools",process.env.TALENT_POOLS_URL||"http://localhost:4117"],["/v1/careers-gateways",process.env.CAREERS_GATEWAY_URL||"http://localhost:4118"],["/v1/config",process.env.CONFIGURATION_URL||"http://localhost:4119"],["/v1/flags",process.env.FEATURE_FLAGS_URL||"http://localhost:4120"],["/v1/campaigns",process.env.CAMPAIGNS_URL||"http://localhost:4121"],["/v1/hooks",process.env.WEBHOOKS_URL||"http://localhost:4122"],["/v1/integrations",process.env.INTEGRATIONS_URL||"http://localhost:4123"],["/v1/analytics",process.env.ANALYTICS_URL||"http://localhost:4124"],["/v1/search",process.env.SEARCH_URL||"http://localhost:4125"],["/v1/intelligence",process.env.INTELLIGENCE_URL||"http://localhost:4126"],["/v1/scheduled-actions",process.env.SCHEDULER_URL||"http://localhost:4127"],["/v1/onboarding",process.env.ONBOARDING_URL||"http://localhost:4128"],["/v1/platform",PLATFORM]
 ] as const;
 
 const isPublic=(method:string,path:string)=>
  (method==="GET"&&path.startsWith("/v1/jobs/public"))||
  (method==="GET"&&path.startsWith("/v1/distribution/feeds/"))||
+ (method==="GET"&&path==="/v1/platform/public/resolve-domain")||
  (method==="POST"&&(path==="/v1/applications"||path==="/v1/applications/job-alerts"||path==="/v1/applications/job-alerts/unsubscribe"))||(path.startsWith("/v1/applications/portal/"))||
  (method==="POST"&&path==="/v1/attribution/touchpoints")||
  (path.startsWith("/v1/campaigns/public/")&&["GET","POST"].includes(method))||
@@ -33,20 +34,32 @@ app.get("/health/services",async c=>{const auth=c.req.header("authorization");if
 app.all("/v1/*",async c=>{
  const requestStarted=Date.now(),url=new URL(c.req.url),correlationId=c.req.header("x-correlation-id")||randomUUID();
  const defaultTenant=process.env.DEFAULT_TENANT_ID||"tenant_raeburn_group";
- let tenantId=isPublic(c.req.method,url.pathname)?defaultTenant:(c.req.header("x-tenant-id")||defaultTenant);
+ const publicRoute=isPublic(c.req.method,url.pathname);let tenantId=publicRoute?defaultTenant:(c.req.header("x-tenant-id")||defaultTenant);
+ if(publicRoute){const host=c.req.header("x-careers-host"),ts=c.req.header("x-careers-timestamp"),sig=c.req.header("x-careers-signature"),secret=process.env.CAREERS_ROUTING_SECRET;if(host&&ts&&sig&&secret){const age=Math.abs(Date.now()-Number(ts)),expected=createHmac("sha256",secret).update(host+"|"+ts).digest("base64url"),a=Buffer.from(expected),b=Buffer.from(sig);if(Number.isFinite(age)&&age<=120000&&a.length===b.length&&timingSafeEqual(a,b)){const rr=await fetch(PLATFORM+"/v1/platform/public/resolve-domain?host="+encodeURIComponent(host),{headers:serviceAuthHeaders({"x-tenant-id":defaultTenant,"x-correlation-id":correlationId})});if(rr.ok){const resolved:any=await rr.json();tenantId=resolved.tenant_id||defaultTenant;}}}}
  let claims:any=null;
 
  if(!isPublic(c.req.method,url.pathname)){
    const auth=c.req.header("authorization");
    if(!auth)return c.json({code:"UNAUTHENTICATED",message:"Authentication required",correlationId},401);
-   const verify=await fetch(IDENTITY+"/v1/identity/introspect",{headers:{authorization:auth}});
-   if(!verify.ok)return c.json({code:"UNAUTHENTICATED",message:"Invalid or expired session",correlationId},401);
-   claims=await verify.json();
-   tenantId=claims.tenantId||tenantId;
+   const bearer=auth.replace(/^Bearer\s+/i,"");
+   if(bearer.startsWith("rt_live_")){
+     const verify=await fetch(PLATFORM+"/v1/platform/api-keys/introspect",{method:"POST",headers:serviceAuthHeaders({"content-type":"application/json","x-tenant-id":defaultTenant,"x-correlation-id":correlationId}),body:JSON.stringify({token:bearer})});
+     if(!verify.ok)return c.json({code:"UNAUTHENTICATED",message:"Invalid or expired API key",correlationId},401);
+     const key:any=await verify.json();claims={sub:"api-key:"+key.id,tenantId:key.tenantId,roles:["CUSTOMER_API"],permissions:key.scopes||[],organisationIds:["*"],apiKey:true};tenantId=key.tenantId;
+   }else{
+     const verify=await fetch(IDENTITY+"/v1/identity/introspect",{headers:{authorization:auth}});
+     if(!verify.ok)return c.json({code:"UNAUTHENTICATED",message:"Invalid or expired session",correlationId},401);
+     claims=await verify.json();tenantId=claims.tenantId||tenantId;
+   }
    const permissions:string[]=Array.isArray(claims.permissions)?claims.permissions:[];
    const needed=requiredPermission(c.req.method,url.pathname);
    if(!hasPermission(permissions,needed))
      return c.json({code:"FORBIDDEN",message:"Permission required: "+needed,correlationId},403);
+   if(process.env.ENFORCE_TENANT_ENTITLEMENTS==="true"&&!url.pathname.startsWith("/v1/platform")){
+     const ar=await fetch(PLATFORM+"/v1/platform/tenants/"+encodeURIComponent(tenantId)+"/access",{headers:serviceAuthHeaders({"x-tenant-id":tenantId,"x-correlation-id":correlationId})});
+     if(!ar.ok)return c.json({code:"TENANT_ACCESS_UNAVAILABLE",message:"Tenant commercial access could not be verified",correlationId},503);
+     const access:any=await ar.json();if(!access.canAccess)return c.json({code:"TENANT_SUSPENDED",message:"Tenant access is not active",correlationId},403);
+   }
  }
 
  const privileged=/^\/v1\/identity\/(providers|users\/[^/]+\/status|bootstrap\/disable|service-identities)/.test(url.pathname)||
@@ -81,6 +94,7 @@ app.all("/v1/*",async c=>{
  const outHeaders=new Headers(response.headers);
  outHeaders.set("x-correlation-id",correlationId);
  const sensitiveRead=c.req.method==="GET"&&[/^\/v1\/candidates/,/^\/v1\/documents/,/^\/v1\/privacy/,/^\/v1\/offers/,/^\/v1\/intelligence/,/^\/v1\/audit/].some(re=>re.test(url.pathname));
+ const period=new Date().toISOString().slice(0,10);void fetch(PLATFORM+"/v1/platform/tenants/"+encodeURIComponent(tenantId)+"/usage",{method:"POST",headers:serviceAuthHeaders({"content-type":"application/json","x-tenant-id":tenantId,"x-correlation-id":correlationId}),body:JSON.stringify({meterKey:"api.requests",periodStart:period,periodEnd:period,quantity:1,mode:"INCREMENT",metadata:{method:c.req.method}})}).catch(()=>{});
  if(claims&&(!["GET","HEAD","OPTIONS"].includes(c.req.method)||sensitiveRead)){
    const ip=c.req.header("cf-connecting-ip")||c.req.header("x-forwarded-for")?.split(",")[0]?.trim()||"unknown",ipHash=createHash("sha256").update(ip).digest("hex");
    fetch(AUDIT+"/internal/requests",{method:"POST",headers:serviceAuthHeaders({"content-type":"application/json","x-tenant-id":tenantId,"x-correlation-id":correlationId}),body:JSON.stringify({tenantId,actor:claims.sub||null,actorEmail:claims.email||null,method:c.req.method,path:url.pathname,status:response.status,durationMs:Date.now()-requestStarted,correlationId,ipHash,userAgent:c.req.header("user-agent")||null,organisationIds:claims.organisationIds||[],sensitiveRead})}).catch(()=>{});

@@ -54,7 +54,11 @@
     "stage11:completion-gate": "node scripts/verify-stage11-completion.mjs && vitest run services/analytics/src/reporting.test.ts",
     "storybook": "npm run storybook:prepare && storybook dev -p 6006",
     "storybook:build": "npm run storybook:prepare && storybook build --output-dir storybook-static",
-    "storybook:prepare": "npm install --no-save --package-lock=false --ignore-scripts storybook@10.6.0 @storybook/nextjs-vite@10.6.0"
+    "storybook:prepare": "npm install --no-save --package-lock=false --ignore-scripts storybook@10.6.0 @storybook/nextjs-vite@10.6.0",
+    "stage12:readiness-gate": "node scripts/verify-stage12-readiness.mjs",
+    "stage12:data-parity": "node scripts/verify-data-parity.mjs",
+    "stage12:dual-read": "node scripts/dual-read-compare.mjs",
+    "stage12:completion-gate": "npm run stage12:readiness-gate && node scripts/verify-stage12-live.mjs"
   },
   "dependencies": {
     "@prisma/client": "6.12.0",

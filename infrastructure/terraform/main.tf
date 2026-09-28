@@ -149,6 +149,28 @@ resource "cloudflare_record" "hooks" {
   proxied = true
 }
 
+resource "cloudflare_ruleset" "talent_waf" {
+  zone_id     = var.cloudflare_zone_id
+  name        = "${local.prefix}-waf"
+  description = "Raeburn Talent production edge protections"
+  kind        = "zone"
+  phase       = "http_request_firewall_custom"
+
+  rules {
+    action      = "block"
+    expression  = "(http.request.method in {\"TRACE\" \"TRACK\"})"
+    description = "Block unsafe HTTP methods"
+    enabled     = true
+  }
+
+  rules {
+    action      = "block"
+    expression  = "(lower(http.request.uri.path) contains \"/.env\" or lower(http.request.uri.path) contains \"/.git\" or lower(http.request.uri.path) contains \"/wp-admin\" or lower(http.request.uri.path) contains \"/phpmyadmin\")"
+    description = "Block common secret and exploit probes"
+    enabled     = true
+  }
+}
+
 resource "digitalocean_project" "talent" {
   name        = local.prefix
   description = var.project_description
