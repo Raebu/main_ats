@@ -178,6 +178,22 @@ resource "cloudflare_record" "hooks" {
   proxied = true
 }
 
+resource "cloudflare_record" "talent_admin" {
+  zone_id = var.cloudflare_zone_id
+  name    = var.environment == "production" ? "talent" : "talent.staging"
+  type    = "CNAME"
+  value   = "cname.vercel-dns.com"
+  proxied = false
+}
+
+resource "cloudflare_record" "careers" {
+  zone_id = var.cloudflare_zone_id
+  name    = var.environment == "production" ? "careers" : "careers.staging"
+  type    = "CNAME"
+  value   = "cname.vercel-dns.com"
+  proxied = false
+}
+
 resource "cloudflare_ruleset" "talent_waf" {
   zone_id     = var.cloudflare_zone_id
   name        = "${local.prefix}-waf"
