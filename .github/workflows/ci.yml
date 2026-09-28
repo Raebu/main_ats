@@ -101,6 +101,7 @@ jobs:
           cat /tmp/raeburn-platform.log
           exit 1
       - run: npm run test:integration
+      - run: npm run test:security-integration
       - run: npm run test:failure
       - run: npm run test:load
       - name: Logs on failure
@@ -111,6 +112,35 @@ jobs:
         run: |
           test ! -f /tmp/raeburn-platform.pid || kill $(cat /tmp/raeburn-platform.pid) || true
           docker compose -f infrastructure/docker-compose.yml down -v
+
+  backup-restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Start PostgreSQL
+        run: docker compose -f infrastructure/docker-compose.yml up -d postgres
+      - name: Bootstrap service databases
+        run: npm run platform:bootstrap
+      - name: Backup and restore jobs database
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f infrastructure/docker-compose.yml exec -T postgres pg_dump -U postgres -Fc jobs > /tmp/jobs.dump
+          test -s /tmp/jobs.dump
+          docker compose -f infrastructure/docker-compose.yml exec -T postgres createdb -U postgres stage10_restore
+          cat /tmp/jobs.dump | docker compose -f infrastructure/docker-compose.yml exec -T postgres pg_restore -U postgres --exit-on-error --no-owner --no-acl -d stage10_restore
+          tables=$(docker compose -f infrastructure/docker-compose.yml exec -T postgres psql -U postgres -d stage10_restore -Atc "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE'")
+          test "$tables" -gt 0
+          docker compose -f infrastructure/docker-compose.yml exec -T postgres dropdb -U postgres stage10_restore
+      - name: Cleanup
+        if: always()
+        run: docker compose -f infrastructure/docker-compose.yml down -v
 
   browser:
     runs-on: ubuntu-latest
