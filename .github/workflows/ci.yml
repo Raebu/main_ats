@@ -85,7 +85,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Start stateful dependencies
-        run: docker compose -f infrastructure/docker-compose.yml up -d postgres pgbouncer nats minio minio-init
+        run: docker compose -f infrastructure/docker-compose.yml up -d postgres pgbouncer nats
       - name: Bootstrap databases
         run: npm run platform:bootstrap
       - name: Start platform
