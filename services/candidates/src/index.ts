@@ -38,7 +38,7 @@ app.post("/v1/candidates/resolve",async c=>{
  const id=randomUUID(),result=await withTransaction(async client=>{
   const{rows}=await client.query("insert into candidates(id,tenant_id,email,name,telephone,location,linkedin,portfolio) values($1,$2,$3,$4,$5,$6,$7,$8) returning *",[id,x.tenantId,email,body.name,body.telephone||null,body.location||null,body.linkedIn||null,body.portfolio||null]);
   const candidate=map(rows[0]);
-  await writeOutbox(client,createEvent({eventType:Events.candidateCreated,eventVersion:1,producer:"candidates",correlationId:x.correlationId,tenantId:x.tenantId,payload:candidate}));
+  await writeOutbox(client,createEvent({eventType:Events.candidateCreated,eventVersion:1,producer:"candidates",correlationId:x.correlationId,tenantId:x.tenantId,payload:{id:candidate.id,change:"CREATED"}}));
   return candidate;
  });
  return c.json(result,201);
@@ -51,7 +51,7 @@ app.patch("/v1/candidates/:id",async c=>{
  await withTransaction(async client=>{
   await client.query("update candidates set name=$3,telephone=$4,location=$5,linkedin=$6,portfolio=$7,updated_at=now() where tenant_id=$1 and id=$2",[x.tenantId,id,next.name,next.telephone||null,next.location||null,next.linkedIn||null,next.portfolio||null]);
   await client.query("insert into candidate_timeline(id,tenant_id,candidate_id,event_type,title,detail,actor) values($1,$2,$3,'CONTACT_UPDATED','Candidate details updated',$4::jsonb,$5)",[randomUUID(),x.tenantId,id,JSON.stringify(b),c.req.header("x-actor")||"system"]);
-  await writeOutbox(client,createEvent({eventType:Events.candidateUpdated,eventVersion:1,producer:"candidates",correlationId:x.correlationId,tenantId:x.tenantId,payload:next}));
+  await writeOutbox(client,createEvent({eventType:Events.candidateUpdated,eventVersion:1,producer:"candidates",correlationId:x.correlationId,tenantId:x.tenantId,payload:{id:next.id,change:"UPDATED"}}));
  });
  return c.json(next);
 });
@@ -62,7 +62,7 @@ app.post("/v1/candidates/:id/anonymise",async c=>{
   const{rows}=await client.query("update candidates set email=$3,name='Anonymised Candidate',telephone=null,location=null,linkedin=null,portfolio=null,employment_history='[]'::jsonb,education='[]'::jsonb,skills='[]'::jsonb,qualifications='[]'::jsonb,certifications='[]'::jsonb,languages='[]'::jsonb,salary_expectation='{}'::jsonb,notice_period=null,work_eligibility='{}'::jsonb,mobility='{}'::jsonb,work_preferences='{}'::jsonb,preferred_business_areas='[]'::jsonb,preferred_role_types='[]'::jsonb,updated_at=now() where tenant_id=$1 and id=$2 returning *",[x.tenantId,id,anonEmail]);
   if(!rows[0])return null;
   const candidate=map(rows[0]);
-  await writeOutbox(client,createEvent({eventType:Events.candidateUpdated,eventVersion:1,producer:"candidates",correlationId:x.correlationId,tenantId:x.tenantId,payload:{...candidate,privacyAction:"ANONYMISED"}}));
+  await writeOutbox(client,createEvent({eventType:Events.candidateUpdated,eventVersion:1,producer:"candidates",correlationId:x.correlationId,tenantId:x.tenantId,payload:{id:candidate.id,change:"ANONYMISED"}}));
   return candidate;
  });
  return result?c.json(result):c.json({code:"NOT_FOUND",message:"Candidate not found"},404);
@@ -95,7 +95,7 @@ app.patch("/v1/candidates/:id/profile",async c=>{
   ]);
   await client.query("insert into candidate_timeline(id,tenant_id,candidate_id,event_type,title,detail,actor) values($1,$2,$3,'PROFILE_UPDATED','Candidate profile updated',$4::jsonb,$5)",[randomUUID(),x.tenantId,id,JSON.stringify(b),c.req.header("x-actor")||"system"]);
   const candidate=map(rows[0]);
-  await writeOutbox(client,createEvent({eventType:Events.candidateUpdated,eventVersion:1,producer:"candidates",correlationId:x.correlationId,tenantId:x.tenantId,payload:candidate}));
+  await writeOutbox(client,createEvent({eventType:Events.candidateUpdated,eventVersion:1,producer:"candidates",correlationId:x.correlationId,tenantId:x.tenantId,payload:{id:candidate.id,change:"UPDATED"}}));
   return candidate;
  });
  return c.json(result);
