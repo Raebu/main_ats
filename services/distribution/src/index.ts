@@ -1,5 +1,5 @@
-import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{context,health,pool,serviceAuthHeaders}from"@raeburn/service-kit";
-const app=new Hono(),JOBS=process.env.JOBS_URL||"http://localhost:4101";
+import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{context,health,pool,serviceAuthHeaders,installServiceRuntime}from"@raeburn/service-kit";
+const app=new Hono();installServiceRuntime(app,"distribution");const JOBS=process.env.JOBS_URL||"http://localhost:4101";
 const esc=(s:string)=>s.replace(/[<>&'"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"}[c]||c));
 app.get("/health",async c=>c.json(await health("distribution")));
 app.get("/v1/distribution/jobs/:jobId",async c=>{const x=context(c.req.raw.headers);const{rows}=await pool.query("select * from publications where tenant_id=$1 and job_id=$2 order by destination",[x.tenantId,c.req.param("jobId")]);return c.json(rows);});
