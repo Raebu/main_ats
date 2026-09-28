@@ -109,7 +109,7 @@ jobs:
           dbid=$(doctl databases list --format ID,Name --no-header | awk '$2=="raeburn-talent-staging-postgres"{print $1}')
           read dbhost dbport <<< "$(doctl databases connection "$dbid" --private --format Host,Port --no-header)"
           test -n "$runtime" && test -n "$nats" && test -n "$dbhost" && test -n "$dbport"
-          encoded=$(python - <<'PY'
+          encoded=$(python3 - <<'PY'
 import os, urllib.parse
 print(urllib.parse.quote(os.environ["DATABASE_RUNTIME_PASSWORD"], safe=""))
 PY
@@ -180,7 +180,7 @@ PY
           dbid=$(doctl databases list --format ID,Name --no-header | awk '$2=="raeburn-talent-production-postgres"{print $1}')
           read dbhost dbport <<< "$(doctl databases connection "$dbid" --private --format Host,Port --no-header)"
           test -n "$runtime" && test -n "$nats" && test -n "$dbhost" && test -n "$dbport"
-          encoded=$(python - <<'PY'
+          encoded=$(python3 - <<'PY'
 import os, urllib.parse
 print(urllib.parse.quote(os.environ["DATABASE_RUNTIME_PASSWORD"], safe=""))
 PY
