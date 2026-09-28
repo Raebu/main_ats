@@ -107,3 +107,10 @@ values
  ('reason_reject_role_change','tenant_raeburn_group','ROLE_NO_LONGER_AVAILABLE','Role closed, cancelled or materially changed','REJECT','["REVIEW","SHORTLIST","INTERVIEW","FINAL_INTERVIEW","OFFER"]'::jsonb,true,'Use only where the vacancy itself changed or ceased to be available; record the vacancy evidence.'),
  ('reason_hire_evidence','tenant_raeburn_group','SELECTION_CRITERIA_EVIDENCED','Selection criteria evidenced','HIRE','["OFFER"]'::jsonb,true,'Record the job-related evidence supporting the final human hiring decision, including structured interview/assessment/offer evidence where applicable.')
 on conflict(tenant_id,code) do nothing;
+
+create table if not exists workflow_templates(
+ id text primary key,tenant_id text not null,key text not null,name text not null,stages jsonb not null default '[]',
+ rules jsonb not null default '{}',active boolean not null default true,version int not null default 1,
+ updated_by text,created_at timestamptz not null default now(),updated_at timestamptz not null default now(),
+ unique(tenant_id,key)
+);
