@@ -11,6 +11,12 @@ Core principles:
 - Reduced-motion support.
 - Consistent status semantics: neutral, success, warning and danger.
 - Reusable PageHeader, Card, Button, Badge and EmptyState primitives.
+- Shared FormField, Input, DataTable, Drawer, Modal, Toast and BarChart components.
 - Product-specific components should compose these primitives rather than duplicate interaction behaviour.
+- The live Talent Admin `/design-system` route is the monorepo component catalogue and executable documentation surface.
 
-Future component catalogue: inputs, comboboxes, drawers, modals, toasts, data tables, pagination, date/time controls, command palette, charts and accessible drag/drop patterns.
+## Stage 11 catalogue status
+
+Stage 11 provides production primitives for controls, forms, cards, tables, drawers, modals, notifications/toasts, badges, states and charts. Talent Admin and Careers remain free to use different visual treatments while preserving the same accessibility and interaction semantics.
+
+The next design-system expansion is product-led rather than a Stage 11 blocker: comboboxes, pagination, date/time controls and accessible drag/drop abstractions should be added when a concrete workflow needs them rather than as unused primitives.
