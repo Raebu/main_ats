@@ -1,4 +1,4 @@
-import{createHash,randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{requiredPermission,hasPermission}from"@raeburn/policy";import{serviceAuthHeaders,installServiceRuntime}from"@raeburn/service-kit";
+import{createHash,createHmac,randomUUID,timingSafeEqual}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{requiredPermission,hasPermission}from"@raeburn/policy";import{serviceAuthHeaders,installServiceRuntime}from"@raeburn/service-kit";
 const app=new Hono();installServiceRuntime(app,"api-gateway");const IDENTITY=process.env.IDENTITY_URL||"http://localhost:4109",AUDIT=process.env.AUDIT_URL||"http://localhost:4111",PLATFORM=process.env.PLATFORM_URL||"http://localhost:4129";
 const rate=new Map<string,{count:number;reset:number}>();
 const maxBody=Number(process.env.MAX_REQUEST_BYTES||12*1024*1024);
@@ -34,7 +34,8 @@ app.get("/health/services",async c=>{const auth=c.req.header("authorization");if
 app.all("/v1/*",async c=>{
  const requestStarted=Date.now(),url=new URL(c.req.url),correlationId=c.req.header("x-correlation-id")||randomUUID();
  const defaultTenant=process.env.DEFAULT_TENANT_ID||"tenant_raeburn_group";
- let tenantId=isPublic(c.req.method,url.pathname)?defaultTenant:(c.req.header("x-tenant-id")||defaultTenant);
+ const publicRoute=isPublic(c.req.method,url.pathname);let tenantId=publicRoute?defaultTenant:(c.req.header("x-tenant-id")||defaultTenant);
+ if(publicRoute){const host=c.req.header("x-careers-host"),ts=c.req.header("x-careers-timestamp"),sig=c.req.header("x-careers-signature"),secret=process.env.CAREERS_ROUTING_SECRET;if(host&&ts&&sig&&secret){const age=Math.abs(Date.now()-Number(ts)),expected=createHmac("sha256",secret).update(host+"|"+ts).digest("base64url"),a=Buffer.from(expected),b=Buffer.from(sig);if(Number.isFinite(age)&&age<=120000&&a.length===b.length&&timingSafeEqual(a,b)){const rr=await fetch(PLATFORM+"/v1/platform/public/resolve-domain?host="+encodeURIComponent(host),{headers:serviceAuthHeaders({"x-tenant-id":defaultTenant,"x-correlation-id":correlationId})});if(rr.ok){const resolved:any=await rr.json();tenantId=resolved.tenant_id||defaultTenant;}}}}
  let claims:any=null;
 
  if(!isPublic(c.req.method,url.pathname)){
