@@ -67,6 +67,8 @@ app.all("/v1/*",async c=>{
  headers.set("x-tenant-id",tenantId);
  if(claims?.sub)headers.set("x-actor",String(claims.sub));
  if(claims?.email)headers.set("x-actor-email",String(claims.email));
+ if(Array.isArray(claims?.roles))headers.set("x-actor-roles",claims.roles.join(","));
+ if(Array.isArray(claims?.permissions))headers.set("x-permissions",claims.permissions.join(","));
  if(Array.isArray(claims?.organisationIds))headers.set("x-organisation-ids",claims.organisationIds.join(","));
  const requestedOrg=c.req.header("x-organisation-id");
  if(requestedOrg&&claims&&!((claims.organisationIds||[]).includes("*")||(claims.organisationIds||[]).includes(requestedOrg)))return c.json({code:"ORGANISATION_FORBIDDEN",message:"Access to this organisation is not permitted",correlationId},403);
