@@ -53,6 +53,8 @@ jobs:
       - name: Configure encrypted remote state
         env:
           TF_BACKEND_HCL: ${{ secrets.TF_BACKEND_HCL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
         run: |
           test -n "$TF_BACKEND_HCL"
           printf '%s' "$TF_BACKEND_HCL" > /tmp/backend.hcl
@@ -91,6 +93,8 @@ jobs:
       - name: Configure encrypted remote state
         env:
           TF_BACKEND_HCL: ${{ secrets.TF_BACKEND_HCL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
         run: |
           test -n "$TF_BACKEND_HCL"
           printf '%s' "$TF_BACKEND_HCL" > /tmp/backend.hcl
@@ -123,6 +127,8 @@ jobs:
       - name: Configure remote backend
         env:
           TF_BACKEND_HCL: ${{ secrets.TF_BACKEND_HCL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
         run: |
           test -n "$TF_BACKEND_HCL"
           printf '%s' "$TF_BACKEND_HCL" > /tmp/backend.hcl
