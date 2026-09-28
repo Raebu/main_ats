@@ -32,7 +32,7 @@ expectContains("scripts/ci-security-isolation.mjs",[
   "authenticated tenant isolation failed","RBAC write denial expected","public tenant spoofing exposed foreign tenant data"
 ]);
 expectContains("scripts/ci-integration-smoke.mjs",[
-  "candidatePortalToken","portal DSAR","distribution worker did not publish","JSON distribution feed missing"
+  "candidatePortalToken","portal DSAR","distribution worker did not finish built-in publication","JSON distribution feed missing"
 ]);
 expectContains("scripts/validate-migrations.mjs",["missing migrations directory","destructive-approved"]);
 expectContains("scripts/migrate-services.mjs",["_schema_migrations"]);
