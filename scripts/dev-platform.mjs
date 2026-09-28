@@ -7,6 +7,8 @@ const children=[];
 function run(workspace,script,extra={}){const child=spawn("npm",["--workspace",workspace,"run",script],{stdio:"inherit",env:{...common,...extra}});children.push(child);child.on("exit",code=>{if(code)console.error(workspace,script,"exited",code);});}
 run("@raeburn/api-gateway","start",{PORT:"4100",SERVICE_NAME:"api-gateway"});
 for(const [service,port] of Object.entries(ports)){const workspace="@raeburn/"+service+"-service",pkgPath=path.resolve("services",service,"package.json");if(!fs.existsSync(pkgPath))continue;const pkg=JSON.parse(fs.readFileSync(pkgPath,"utf8")),db=service.replace(/-/g,"_"),env={PORT:String(port),SERVICE_NAME:service};if(!noDb.has(service))env.DATABASE_URL=(process.env.RUNTIME_DATABASE_BASE_URL||"postgresql://postgres:postgres@localhost:6432")+"/"+db;run(workspace,"start",env);if(pkg.scripts?.worker)run(workspace,"worker",env);if(pkg.scripts?.outbox)run(workspace,"outbox",env);}
-run("@raeburn/careers-web","dev",{TALENT_API_URL:"http://localhost:4100",TALENT_TENANT_ID:"tenant_raeburn_group",CAREERS_BASE_URL:"http://localhost:3001"});
-run("@raeburn/talent-admin","dev",{TALENT_API_URL:"http://localhost:4100"});
+if(process.env.SKIP_FRONTENDS!=="true"){
+ run("@raeburn/careers-web","dev",{TALENT_API_URL:"http://localhost:4100",TALENT_TENANT_ID:"tenant_raeburn_group",CAREERS_BASE_URL:"http://localhost:3001"});
+ run("@raeburn/talent-admin","dev",{TALENT_API_URL:"http://localhost:4100"});
+}
 process.on("SIGINT",()=>{for(const child of children)child.kill("SIGTERM");process.exit(0);});
