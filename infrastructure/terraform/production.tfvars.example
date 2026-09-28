@@ -1,0 +1,6 @@
+environment="production"
+region="lon1"
+postgres_nodes=2
+postgres_size="db-s-2vcpu-4gb"
+runtime_size="s-4vcpu-8gb"
+nats_size="s-2vcpu-4gb"
