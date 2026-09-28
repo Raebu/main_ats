@@ -9,7 +9,7 @@ async function forward(req:Request,ctx:{params:Promise<{path:string[]}>}){
  let token=jar.get("raeburn_talent_token")?.value,session:any=null;
  if(!token){session=await refresh(jar);token=session?.accessToken;}
  if(!token)return NextResponse.json({error:"Unauthenticated"},{status:401});
- const makeHeaders=()=>{const h=new Headers(req.headers);h.set("authorization","Bearer "+token);h.delete("host");return h;};
+ const makeHeaders=()=>{const h=new Headers(req.headers);h.set("authorization","Bearer "+token);const reauth=jar.get("raeburn_talent_reauth")?.value;if(reauth)h.set("x-reauth-token",reauth);h.delete("host");return h;};
  const method=req.method,body=!["GET","HEAD"].includes(method)?await req.arrayBuffer():undefined;
  const call=()=>fetch(target,{method,headers:makeHeaders(),...(body?{body}:{})} as any);
  let r=await call();
