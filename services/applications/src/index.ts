@@ -33,7 +33,7 @@ app.get("/v1/applications",async c=>{
 
 app.post("/v1/applications",async c=>{
  const x=context(c.req.raw.headers),body=CreateApplicationContract.parse(await c.req.json());
- const headers=serviceAuthHeaders({"content-type":"application/json","x-tenant-id":x.tenantId,"x-correlation-id":x.correlationId});
+ const headers=serviceAuthHeaders({"content-type":"application/json","x-tenant-id":x.tenantId,"x-correlation-id":x.correlationId,"x-organisation-ids":"*"});
  const jobRes=await fetch(JOBS+"/v1/jobs/"+body.jobId,{headers});
  if(!jobRes.ok)return c.json({code:"JOB_NOT_AVAILABLE",message:"Vacancy not available",correlationId:x.correlationId},409);
  const job:any=await jobRes.json();
