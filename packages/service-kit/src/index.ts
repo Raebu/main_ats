@@ -83,6 +83,9 @@ export async function consumeDurable(
   await ensureEventInfrastructure();
   const client=await jetStream(),opts=consumerOpts(),durable=durableName(consumer),maxDeliver=options.maxDeliver||8;
   opts.durable(durable);opts.manualAck();opts.ackExplicit();opts.deliverAll();opts.maxDeliver(maxDeliver);opts.ackWait(options.ackWaitMs||30000);
+  // Legacy nats.js consumerOpts creates a push consumer, which requires an explicit delivery subject.
+  // Keep it stable per durable so multiple service replicas can share the queue group safely across restarts.
+  opts.deliverTo("_RAEBURN."+durable+".deliver");
   opts.queue(durableName(options.queue||durable));
   const sub=await client.subscribe(subject,opts);
   log("info","durable consumer started",{subject,consumer:durable});
