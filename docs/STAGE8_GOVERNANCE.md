@@ -4,19 +4,19 @@ Stage 8 converts governance requirements into enforceable application controls.
 
 ## Identity and access
 - TOTP MFA plus WebAuthn/passkeys with challenge-to-user binding and required WebAuthn user verification.
-- Generic OIDC/PKCE SSO compatible with Google Workspace and Microsoft Entra ID; unknown users fail closed unless administrator-controlled auto-provisioning is explicitly enabled, and Google identities require a verified email.
+- Google Workspace and Microsoft Entra ID use OIDC/PKCE with administrator-facing provider configuration; unknown users fail closed unless administrator-controlled auto-provisioning is explicitly enabled, and Google identities require a verified email.
 - 15-minute access tokens and rotating 30-day refresh tokens.
-- RS256 signing support, JWKS publishing and multiple public verification keys for key rotation.
+- RS256 signing support, JWKS publishing and multiple public verification keys for key rotation; production refuses HMAC fallback when asymmetric keys are absent.
 - Production readiness fails when asymmetric signing/encryption/WebAuthn configuration is absent.
 - Session listing/revocation and forced logout.
-- Password-reset workflow with hashed short-lived reset tokens.
-- Login throttling, temporary lockout, security-event log and new-device signal.
+- Password-reset workflow with hashed short-lived reset tokens, non-enumerating request behaviour, authenticated reset-delivery webhook support and a complete Talent Admin reset UI.
+- Login throttling across password, refresh, password-reset, passkey and SSO endpoints, temporary lockout, security-event log and new-device signal.
 - Five-minute privileged re-authentication for high-risk administration.
 - Bootstrap administrator can be permanently disabled after real admin provisioning.
 - Organisation IDs are carried in claims and enforced by Gateway, Jobs and Applications.
 - Public routes force the configured public tenant rather than trusting caller-supplied tenant headers.
 - Tenant-derived encryption helpers and tenant-scoped MFA encryption.
-- Service identity/key issuance and introspection are available for deployment-level service authentication.
+- Service identity/key issuance and introspection are available, and production service-to-service calls require signed service authentication by default. Gateway-supplied actor/organisation/service headers replace untrusted caller values.
 - Secrets can be injected by environment variable or `*_FILE` mount from a platform secret manager; production tenant/MFA encryption fails closed rather than using development fallback keys.
 
 ## Privacy
