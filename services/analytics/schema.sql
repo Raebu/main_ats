@@ -20,7 +20,7 @@ create table if not exists report_exports(
  id text primary key,tenant_id text not null,token_hash text not null unique,report_type text not null,format text not null,
  content_type text not null,filename text not null,payload_base64 text not null,pii_mode text not null default 'REDACTED',
  created_by text,created_at timestamptz not null default now(),expires_at timestamptz not null,downloaded_at timestamptz,
- download_count int not null default 0
+ download_count int not null default 0,schedule_id text
 );
 create index if not exists report_exports_expiry on report_exports(tenant_id,expires_at);
 create table if not exists report_schedules(
@@ -35,3 +35,5 @@ create table if not exists bi_connectors(
  endpoint text not null,secret_env text,status text not null default 'ACTIVE',last_push_at timestamptz,last_error text,
  created_by text,created_at timestamptz not null default now(),updated_at timestamptz not null default now()
 );
+
+alter table report_exports add column if not exists schedule_id text;
