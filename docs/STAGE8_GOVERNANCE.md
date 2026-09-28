@@ -32,6 +32,12 @@ Stage 8 converts governance requirements into enforceable application controls.
 - Human-readable HTML and machine-readable JSON export.
 - Legal holds and retention automation remain integrated.
 - Formal compliance sign-off register.
+- Privacy complaints are recorded with acknowledgement, owner, outcome, resolution evidence and audit history in line with the current DUAA-amended complaints-handling baseline.
+
+## Employment/engagement compliance
+- Agency reviews now cover current Fair Work Agency / Conduct Regulations evidence as well as Agency Workers Regulations controls, supplier terms, assignment particulars and applicable health-and-safety/qualification information.
+- Contractor reviews document employment-status/tax responsibility, IR35/off-payroll applicability, status-determination responsibility where relevant, right-to-work responsibility and contract term/end date.
+- Compliance sign-off records hold the accountable human reviewer, evidence reference, decision and next review date; engineering controls do not self-certify a legal opinion.
 
 ## Fairness and responsible recruitment
 - Configurable decision-reason taxonomy.
