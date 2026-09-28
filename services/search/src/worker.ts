@@ -2,7 +2,8 @@ import{randomUUID}from"node:crypto";
 import type{DomainEvent}from"@raeburn/events";
 import{consumeDurable,metricInc,pool,resilientFetch,serviceAuthHeaders,withWorkerLease}from"@raeburn/service-kit";
 
-const SEARCH_URL=process.env.SEARCH_URL||"http://localhost:4125";\nconst CANDIDATES_URL=process.env.CANDIDATES_URL||"http://localhost:4102";
+const SEARCH_URL=process.env.SEARCH_URL||"http://localhost:4125";
+const CANDIDATES_URL=process.env.CANDIDATES_URL||"http://localhost:4102";
 const NOTIFICATIONS_URL=process.env.NOTIFICATIONS_URL||"http://localhost:4112";
 
 function names(list:any){return(Array.isArray(list)?list:[]).map((x:any)=>typeof x==="string"?x:(x?.name||x?.title||x?.value)).filter(Boolean);}
