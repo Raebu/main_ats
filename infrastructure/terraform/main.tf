@@ -58,18 +58,50 @@ resource "digitalocean_droplet" "nats" {
 resource "digitalocean_firewall" "runtime" {
   name = "${local.prefix}-runtime-fw"
   droplet_ids = [digitalocean_droplet.runtime.id]
-  inbound_rule { protocol="tcp" port_range="22" source_addresses=["0.0.0.0/0","::/0"] }
-  inbound_rule { protocol="tcp" port_range="80" source_addresses=["0.0.0.0/0","::/0"] }
-  inbound_rule { protocol="tcp" port_range="443" source_addresses=["0.0.0.0/0","::/0"] }
-  outbound_rule { protocol="tcp" port_range="1-65535" destination_addresses=["0.0.0.0/0","::/0"] }
-  outbound_rule { protocol="udp" port_range="1-65535" destination_addresses=["0.0.0.0/0","::/0"] }
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "22"
+    source_addresses = [digitalocean_vpc.platform.ip_range]
+  }
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "80"
+    source_addresses = ["0.0.0.0/0", "::/0"]
+  }
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "443"
+    source_addresses = ["0.0.0.0/0", "::/0"]
+  }
+  outbound_rule {
+    protocol              = "tcp"
+    port_range            = "1-65535"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+  outbound_rule {
+    protocol              = "udp"
+    port_range            = "1-65535"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
 }
 resource "digitalocean_firewall" "nats" {
   name = "${local.prefix}-nats-fw"
   droplet_ids = [digitalocean_droplet.nats.id]
-  inbound_rule { protocol="tcp" port_range="4222" source_addresses=[digitalocean_vpc.platform.ip_range] }
-  inbound_rule { protocol="tcp" port_range="8222" source_addresses=[digitalocean_vpc.platform.ip_range] }
-  outbound_rule { protocol="tcp" port_range="1-65535" destination_addresses=["0.0.0.0/0","::/0"] }
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "4222"
+    source_addresses = [digitalocean_vpc.platform.ip_range]
+  }
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "8222"
+    source_addresses = [digitalocean_vpc.platform.ip_range]
+  }
+  outbound_rule {
+    protocol              = "tcp"
+    port_range            = "1-65535"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
 }
 resource "cloudflare_r2_bucket" "documents" {
   account_id = var.cloudflare_account_id
