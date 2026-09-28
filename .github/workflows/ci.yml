@@ -41,6 +41,7 @@ jobs:
       - run: npm ci
       - run: npm run migrate:validate
       - run: npm run stage9:validate
+      - run: npm run stage10:completion-gate
       - run: npm run test:contracts
       - run: npm run typecheck
       - run: npm run test:unit
