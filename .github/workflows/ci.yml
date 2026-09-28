@@ -125,6 +125,15 @@ jobs:
       - run: npm ci
       - name: Start PostgreSQL
         run: docker compose -f infrastructure/docker-compose.yml up -d postgres
+      - name: Wait for PostgreSQL readiness
+        shell: bash
+        run: |
+          for i in $(seq 1 60); do
+            if docker compose -f infrastructure/docker-compose.yml exec -T postgres pg_isready -U postgres >/dev/null 2>&1; then exit 0; fi
+            sleep 2
+          done
+          docker compose -f infrastructure/docker-compose.yml logs postgres
+          exit 1
       - name: Bootstrap service databases
         run: npm run platform:bootstrap
       - name: Backup and restore jobs database
