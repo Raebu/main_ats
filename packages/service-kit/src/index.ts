@@ -341,3 +341,9 @@ export async function withWorkerLease<T>(name:string,fn:()=>Promise<T>){
     try{return await fn();}finally{await client.query("select pg_advisory_unlock(hashtext($1)::bigint)",[key]);}
   }finally{client.release();}
 }
+
+export function installServiceRuntime(app:any,service:string){
+  app.use("*",observeHttp(service));
+  app.get("/ready",async(c:any)=>{const state=await readiness(service);return c.json(state,state.status==="ready"?200:503);});
+  app.get("/metrics",async(c:any)=>c.text(await metricsText(service),200,{"content-type":"text/plain; version=0.0.4"}));
+}
