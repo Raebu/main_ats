@@ -17,7 +17,8 @@ permissions:
   id-token: write
 
 env:
-  IMAGE: ghcr.io/raebu/raeburn-talent-gateway
+  UNIT_IMAGE: ghcr.io/raebu/raeburn-talent-unit
+  SCANNER_IMAGE: ghcr.io/raebu/raeburn-talent-malware-scanner
 
 jobs:
   qualify:
@@ -55,7 +56,8 @@ jobs:
     needs: qualify
     runs-on: ubuntu-latest
     outputs:
-      image_ref: ${{ steps.immutable.outputs.image_ref }}
+      unit_image_ref: ${{ steps.immutable.outputs.unit_image_ref }}
+      scanner_image_ref: ${{ steps.immutable.outputs.scanner_image_ref }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -66,19 +68,25 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: sigstore/cosign-installer@v3
-      - name: Build and push immutable image
+      - name: Build and push immutable deployment images
         run: |
-          docker build -f infrastructure/production/Dockerfile.workspace --build-arg WORKSPACE=@raeburn/api-gateway -t "$IMAGE:${{ needs.qualify.outputs.sha }}" .
-          docker push "$IMAGE:${{ needs.qualify.outputs.sha }}"
+          docker build -f infrastructure/production/Dockerfile.unit -t "$UNIT_IMAGE:${{ needs.qualify.outputs.sha }}" .
+          docker build -f infrastructure/production/Dockerfile.malware-scanner -t "$SCANNER_IMAGE:${{ needs.qualify.outputs.sha }}" .
+          docker push "$UNIT_IMAGE:${{ needs.qualify.outputs.sha }}"
+          docker push "$SCANNER_IMAGE:${{ needs.qualify.outputs.sha }}"
       - id: immutable
-        name: Resolve immutable digest
+        name: Resolve immutable digests
         shell: bash
         run: |
-          digest=$(docker buildx imagetools inspect "$IMAGE:${{ needs.qualify.outputs.sha }}" --format '{{.Manifest.Digest}}')
-          test -n "$digest"
-          echo "image_ref=$IMAGE@$digest" >> "$GITHUB_OUTPUT"
-      - name: Sign immutable image
-        run: cosign sign --yes "${{ steps.immutable.outputs.image_ref }}"
+          unit_digest=$(docker buildx imagetools inspect "$UNIT_IMAGE:${{ needs.qualify.outputs.sha }}" --format '{{.Manifest.Digest}}')
+          scanner_digest=$(docker buildx imagetools inspect "$SCANNER_IMAGE:${{ needs.qualify.outputs.sha }}" --format '{{.Manifest.Digest}}')
+          test -n "$unit_digest" && test -n "$scanner_digest"
+          echo "unit_image_ref=$UNIT_IMAGE@$unit_digest" >> "$GITHUB_OUTPUT"
+          echo "scanner_image_ref=$SCANNER_IMAGE@$scanner_digest" >> "$GITHUB_OUTPUT"
+      - name: Sign immutable images
+        run: |
+          cosign sign --yes "${{ steps.immutable.outputs.unit_image_ref }}"
+          cosign sign --yes "${{ steps.immutable.outputs.scanner_image_ref }}"
 
   staging:
     needs: [qualify,image]
@@ -93,7 +101,8 @@ jobs:
           DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
           DEPLOY_WEBHOOK_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
           RELEASE_SHA: ${{ needs.qualify.outputs.sha }}
-          IMAGE_REF: ${{ needs.image.outputs.image_ref }}
+          UNIT_IMAGE_REF: ${{ needs.image.outputs.unit_image_ref }}
+          SCANNER_IMAGE_REF: ${{ needs.image.outputs.scanner_image_ref }}
         run: node scripts/deploy-release.mjs staging
       - name: Staging smoke test
         env:
@@ -120,7 +129,8 @@ jobs:
           DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
           DEPLOY_WEBHOOK_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
           RELEASE_SHA: ${{ needs.qualify.outputs.sha }}
-          IMAGE_REF: ${{ needs.image.outputs.image_ref }}
+          UNIT_IMAGE_REF: ${{ needs.image.outputs.unit_image_ref }}
+          SCANNER_IMAGE_REF: ${{ needs.image.outputs.scanner_image_ref }}
           DEPLOY_STRATEGY: blue-green
         run: node scripts/deploy-release.mjs production
       - name: Production smoke test
@@ -135,7 +145,8 @@ jobs:
           DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
           DEPLOY_WEBHOOK_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
           RELEASE_SHA: ${{ needs.qualify.outputs.sha }}
-          IMAGE_REF: ${{ needs.image.outputs.image_ref }}
+          UNIT_IMAGE_REF: ${{ needs.image.outputs.unit_image_ref }}
+          SCANNER_IMAGE_REF: ${{ needs.image.outputs.scanner_image_ref }}
           ROLLBACK: "true"
         run: node scripts/deploy-release.mjs production
       - if: steps.smoke.outcome == 'failure'
