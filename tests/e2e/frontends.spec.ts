@@ -92,7 +92,7 @@ test.describe("Talent Admin recruiter journey",()=>{
     await page.goto("/login");
     await page.getByRole("textbox",{name:"Email",exact:true}).fill(process.env.E2E_ADMIN_EMAIL||"careers@theraeburngroup.com");
     await page.getByPlaceholder("Password").fill(process.env.E2E_ADMIN_PASSWORD||"change-me-local");
-    await page.getByRole("button",{name:"Sign in"}).click();
+    await page.getByRole("button",{name:"Sign in",exact:true}).click();
 
     await expect(page).toHaveURL(/\/$/,{timeout:10_000});
     await expect(page.getByRole("heading",{name:/Recruitment command centre/i})).toBeVisible();
