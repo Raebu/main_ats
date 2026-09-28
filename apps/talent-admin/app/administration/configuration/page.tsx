@@ -1,0 +1,1 @@
+import ConfigurationExplorer from"../../../components/ConfigurationExplorer";export default function Page(){return <><h1>Configuration explorer</h1><p>Resolve effective values through vacancy → department → organisation → tenant inheritance and rollback safely to a previous version.</p><div className="workspaceStack"><ConfigurationExplorer/></div></>}
