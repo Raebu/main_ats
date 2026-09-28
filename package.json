@@ -52,8 +52,9 @@
     "stage10:completion-gate": "node scripts/verify-stage10-completion.mjs",
     "object-storage:init": "node scripts/init-object-storage.mjs",
     "stage11:completion-gate": "node scripts/verify-stage11-completion.mjs && vitest run services/analytics/src/reporting.test.ts",
-    "storybook": "npm exec --yes --package=storybook@10.6.0 --package=@storybook/nextjs-vite@10.6.0 -- storybook dev -p 6006",
-    "storybook:build": "npm exec --yes --package=storybook@10.6.0 --package=@storybook/nextjs-vite@10.6.0 -- storybook build --output-dir storybook-static"
+    "storybook": "npm run storybook:prepare && storybook dev -p 6006",
+    "storybook:build": "npm run storybook:prepare && storybook build --output-dir storybook-static",
+    "storybook:prepare": "npm install --no-save --package-lock=false --ignore-scripts storybook@10.6.0 @storybook/nextjs-vite@10.6.0"
   },
   "dependencies": {
     "@prisma/client": "6.12.0",
