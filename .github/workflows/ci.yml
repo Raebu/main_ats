@@ -7,22 +7,142 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  validate:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      workspaces: ${{ steps.changed.outputs.workspaces }}
+      has_workspaces: ${{ steps.changed.outputs.has_workspaces }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: changed
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          node scripts/changed-workspaces.mjs "$BASE_SHA" > changed.json
+          echo "workspaces=$(cat changed.json)" >> "$GITHUB_OUTPUT"
+          if [ "$(cat changed.json)" = "[]" ]; then echo "has_workspaces=false" >> "$GITHUB_OUTPUT"; else echo "has_workspaces=true" >> "$GITHUB_OUTPUT"; fi
+
+  deterministic:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
+          cache: npm
+      - run: npm ci
       - run: npm run migrate:validate
       - run: npm run stage9:validate
+      - run: npm run test:contracts
       - run: npm run typecheck
-      - run: npm run test --if-present
+      - run: npm run test:unit
       - run: npm run build:frontends
         env:
           TALENT_API_URL: http://127.0.0.1:4100
           TALENT_TENANT_ID: tenant_raeburn_group
           CAREERS_BASE_URL: https://theraeburngroup.com
       - run: npm audit --audit-level=high
+
+  workspace-validation:
+    needs: changes
+    if: needs.changes.outputs.has_workspaces == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        workspace: ${{ fromJSON(needs.changes.outputs.workspaces) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validate changed workspace
+        env:
+          WORKSPACE: ${{ matrix.workspace }}
+        run: |
+          npm --workspace "$WORKSPACE" run test --if-present
+          npm --workspace "$WORKSPACE" run typecheck --if-present
+          npm --workspace "$WORKSPACE" run build --if-present
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Start stateful dependencies
+        run: docker compose -f infrastructure/docker-compose.yml up -d postgres pgbouncer nats minio minio-init
+      - name: Bootstrap databases
+        run: npm run platform:bootstrap
+      - name: Start platform
+        run: |
+          nohup npm run platform:dev > /tmp/raeburn-platform.log 2>&1 &
+          echo $! > /tmp/raeburn-platform.pid
+      - name: Wait for gateway
+        run: |
+          for i in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:4100/health >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/raeburn-platform.log
+          exit 1
+      - run: npm run test:integration
+      - run: npm run test:failure
+      - run: npm run test:load
+      - name: Logs on failure
+        if: failure()
+        run: cat /tmp/raeburn-platform.log || true
+      - name: Cleanup
+        if: always()
+        run: |
+          test ! -f /tmp/raeburn-platform.pid || kill $(cat /tmp/raeburn-platform.pid) || true
+          docker compose -f infrastructure/docker-compose.yml down -v
+
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Build frontends
+        run: npm run build:frontends
+        env:
+          TALENT_API_URL: http://127.0.0.1:4100
+          TALENT_TENANT_ID: tenant_raeburn_group
+          CAREERS_BASE_URL: http://127.0.0.1:3001
+      - name: Start frontends
+        run: |
+          nohup env PORT=3001 TALENT_API_URL=http://127.0.0.1:4100 TALENT_TENANT_ID=tenant_raeburn_group CAREERS_BASE_URL=http://127.0.0.1:3001 npm --workspace @raeburn/careers-web run start >/tmp/careers.log 2>&1 &
+          nohup env PORT=3002 TALENT_API_URL=http://127.0.0.1:4100 npm --workspace @raeburn/talent-admin run start >/tmp/admin.log 2>&1 &
+      - name: Wait for frontends
+        shell: bash
+        run: |
+          for i in $(seq 1 60); do curl -fsS http://127.0.0.1:3001 >/dev/null && curl -fsS http://127.0.0.1:3002/login >/dev/null && exit 0; sleep 2; done
+          cat /tmp/careers.log || true
+          cat /tmp/admin.log || true
+          exit 1
+      - run: npm run test:e2e
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
