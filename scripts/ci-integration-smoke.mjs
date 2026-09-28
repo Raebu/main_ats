@@ -11,13 +11,13 @@ async function call(base,path,init={}){
 
 await call(API,"/health",{method:"GET",headers:{}});
 const stamp=Date.now();
-const job=await call(JOBS,"/v1/jobs",{method:"POST",body:JSON.stringify({
+const job=await call(JOBS,"/v1/jobs",{method:"POST",headers:{"x-organisation-ids":"*"},body:JSON.stringify({
   reference:"CI-"+stamp,slug:"ci-stage10-"+stamp,title:"Stage 10 Integration Vacancy",
   hiringOrganisationId:"org_raeburn_group",location:"Eastleigh, UK",workplaceType:"HYBRID",employmentType:"PERMANENT",
   summary:"Disposable CI vacancy",description:"Created by Stage 10 integration testing.",
   requirements:"Integration test requirements.",benefits:"Test benefits",audiences:["MAINSTREAM"]
 })});
-await call(JOBS,"/v1/jobs/"+job.id+"/publish",{method:"POST",body:"{}"});
+await call(JOBS,"/v1/jobs/"+job.id+"/publish",{method:"POST",headers:{"x-organisation-ids":"*"},body:"{}"});
 
 const published=await call(API,"/v1/jobs/public",{method:"GET",headers:{}});
 const jobs=Array.isArray(published)?published:(published.jobs||[]);
@@ -42,7 +42,7 @@ const privacy=await call(API,"/v1/applications/portal/privacy-request",{
 });
 if(!privacy.id||privacy.identityVerified!==true)throw new Error("portal DSAR was not created and identity-verified");
 
-await call(JOBS,"/v1/jobs/"+job.id+"/close",{method:"POST",body:"{}"});
+await call(JOBS,"/v1/jobs/"+job.id+"/close",{method:"POST",headers:{"x-organisation-ids":"*"},body:"{}"});
 console.log(JSON.stringify({
   ok:true,jobId:job.id,applicationId:application.id,candidateId:application.candidateId,
   privacyRequestId:privacy.id
