@@ -50,7 +50,8 @@
     "stage10:validate": "npm run migrate:validate && npm run test:contracts && npm run typecheck",
     "test:security-integration": "node scripts/ci-security-isolation.mjs",
     "stage10:completion-gate": "node scripts/verify-stage10-completion.mjs",
-    "object-storage:init": "node scripts/init-object-storage.mjs"
+    "object-storage:init": "node scripts/init-object-storage.mjs",
+    "stage11:completion-gate": "node scripts/verify-stage11-completion.mjs && vitest run services/analytics/src/reporting.test.ts"
   },
   "dependencies": {
     "@prisma/client": "6.12.0",
