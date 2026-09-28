@@ -148,3 +148,45 @@ resource "cloudflare_record" "hooks" {
   value   = digitalocean_droplet.runtime.ipv4_address
   proxied = true
 }
+
+resource "digitalocean_project" "talent" {
+  name        = local.prefix
+  description = var.project_description
+  purpose     = "Operational / Developer tooling"
+  environment = var.environment == "production" ? "Production" : "Staging"
+  resources = [
+    digitalocean_droplet.runtime.urn,
+    digitalocean_droplet.nats.urn,
+    digitalocean_database_cluster.postgres.urn,
+  ]
+}
+
+resource "digitalocean_monitor_alert" "runtime_cpu" {
+  count       = length(var.alert_emails) > 0 ? 1 : 0
+  type        = "v1/insights/droplet/cpu"
+  description = "${local.prefix} runtime CPU"
+  compare     = "GreaterThan"
+  value       = var.alert_cpu_threshold
+  window      = var.alert_window
+  enabled     = true
+  entities    = [digitalocean_droplet.runtime.id]
+
+  alerts {
+    email = var.alert_emails
+  }
+}
+
+resource "digitalocean_monitor_alert" "nats_cpu" {
+  count       = length(var.alert_emails) > 0 ? 1 : 0
+  type        = "v1/insights/droplet/cpu"
+  description = "${local.prefix} NATS CPU"
+  compare     = "GreaterThan"
+  value       = var.alert_cpu_threshold
+  window      = var.alert_window
+  enabled     = true
+  entities    = [digitalocean_droplet.nats.id]
+
+  alerts {
+    email = var.alert_emails
+  }
+}
