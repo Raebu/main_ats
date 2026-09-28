@@ -1,0 +1,7 @@
+import fs from "node:fs";import path from "node:path";import{execFileSync}from"node:child_process";
+const base=process.argv[2];
+function all(){const roots=["services","apps","connectors","packages"],out=[];for(const root of roots)for(const entry of fs.readdirSync(root,{withFileTypes:true}).filter(x=>x.isDirectory())){const p=path.join(root,entry.name,"package.json");if(!fs.existsSync(p))continue;const pkg=JSON.parse(fs.readFileSync(p,"utf8"));if(pkg.name)out.push(pkg.name);}return out;}
+let changed=[];try{changed=base&&base!=="0000000000000000000000000000000000000000"?execFileSync("git",["diff","--name-only",base+"...HEAD"],{encoding:"utf8"}).trim().split(/\n/).filter(Boolean):execFileSync("git",["show","--pretty=","--name-only","HEAD"],{encoding:"utf8"}).trim().split(/\n/).filter(Boolean);}catch{}
+const allAffected=changed.some(f=>f==="package.json"||f==="package-lock.json"||f.startsWith("packages/")||f.startsWith("scripts/")),selected=new Set(allAffected?all():[]);
+for(const f of changed){const m=f.match(/^(services|apps|connectors)\/([^/]+)\//);if(!m)continue;const p=path.join(m[1],m[2],"package.json");if(!fs.existsSync(p))continue;const pkg=JSON.parse(fs.readFileSync(p,"utf8"));if(pkg.name)selected.add(pkg.name);}
+process.stdout.write(JSON.stringify([...selected].sort()));
