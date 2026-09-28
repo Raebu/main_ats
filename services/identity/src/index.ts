@@ -42,7 +42,7 @@ function productionSecurityIssues(){
    if(!cfg("AUTH_PUBLIC_KEY_PEM")&&!cfg("AUTH_PUBLIC_KEYS_JSON"))issues.push("AUTH_PUBLIC_KEY_PEM or AUTH_PUBLIC_KEYS_JSON");
    if(!cfg("TENANT_ENCRYPTION_MASTER_KEY"))issues.push("TENANT_ENCRYPTION_MASTER_KEY");
    if(!cfg("MFA_ENCRYPTION_KEY"))issues.push("MFA_ENCRYPTION_KEY");
-   if(process.env.REQUIRE_SERVICE_AUTH==="true"&&!cfg("SERVICE_AUTH_SECRET"))issues.push("SERVICE_AUTH_SECRET");
+   if(!cfg("SERVICE_AUTH_SECRET"))issues.push("SERVICE_AUTH_SECRET");
    if(!process.env.WEBAUTHN_RP_ID||!process.env.WEBAUTHN_ORIGIN)issues.push("WEBAUTHN_RP_ID/WEBAUTHN_ORIGIN");
  }
  return issues;
