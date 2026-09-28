@@ -33,7 +33,12 @@
     "build:frontends": "npm run build:careers && npm run build:admin",
     "migrate:services": "node scripts/migrate-services.mjs",
     "check": "npm run typecheck && npm run test && npm run build:frontends",
-    "migrate:validate": "node scripts/validate-migrations.mjs"
+    "migrate:validate": "node scripts/validate-migrations.mjs",
+    "stage9:validate": "node scripts/validate-stage9-runtime.mjs && npm run migrate:validate",
+    "db:backup": "node scripts/backup-service-databases.mjs",
+    "db:restore-drill": "node scripts/restore-drill.mjs",
+    "db:provision-roles": "node scripts/provision-db-roles.mjs",
+    "synthetic:candidate": "node scripts/synthetic-candidate-journey.mjs"
   },
   "dependencies": {
     "@prisma/client": "6.12.0",
@@ -61,4 +66,4 @@
     "typescript": "^5.9.2",
     "vitest": "^5.0.2"
   }
-}\n
+}
