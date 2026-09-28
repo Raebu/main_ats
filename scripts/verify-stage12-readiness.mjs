@@ -7,7 +7,7 @@ expect("services/malware-scanner/src/index.ts",["clamscan","/scan","file_too_lar
 expect("infrastructure/production/Dockerfile.malware-scanner",["clamav","freshclam"]);
 expect("services/documents/src/worker.ts",["MALWARE_SCANNER_URL","SCAN_PENDING","development-bypass"]);
 expect("services/communications/src/worker.ts",["SMTP_HOST","SMTP_FALLBACK_HOST","smtp-primary"]);
-expect("services/identity/src/index.ts",["identity_providers","OIDC","sso"]);
+expect("services/identity/src/index.ts",["identity_providers","openid-configuration","clientSecretEnv","/sso/"]);
 expect("infrastructure/terraform/main.tf",["digitalocean_database_cluster","-js -sd /data","cloudflare_r2_bucket","cloudflare_record","cloudflare_ruleset","digitalocean_monitor_alert"]);
 expect("infrastructure/production/deployment-units.json",["edge-api","recruitment-core","platform-control","malware-scanner"]);
 expect("scripts/verify-data-parity.mjs",["LEGACY_DATABASE_URL","delta"]);
