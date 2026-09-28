@@ -1,0 +1,1 @@
+import{api}from"../../lib/api";import DataQualityWorkspace from"../../components/DataQualityWorkspace";export default async function Page(){const runs=await api("/v1/analytics/data-quality");return <DataQualityWorkspace runs={runs||[]}/>}
