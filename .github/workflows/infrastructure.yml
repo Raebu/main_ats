@@ -1,0 +1,59 @@
+name: Infrastructure
+on:
+  pull_request:
+    paths:
+      - "infrastructure/terraform/**"
+      - ".github/workflows/infrastructure.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infrastructure/terraform/**"
+      - ".github/workflows/infrastructure.yml"
+  schedule:
+    - cron: "11 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: "1.10.6"
+      - run: tofu fmt -check -recursive infrastructure/terraform
+      - run: tofu -chdir=infrastructure/terraform init -backend=false
+      - run: tofu -chdir=infrastructure/terraform validate
+
+  drift:
+    if: github.event_name == 'schedule' && vars.TF_DRIFT_ENABLED == 'true'
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: "1.10.6"
+      - name: Configure remote backend
+        env:
+          TF_BACKEND_HCL: ${{ secrets.TF_BACKEND_HCL }}
+        run: |
+          test -n "$TF_BACKEND_HCL"
+          printf '%s' "$TF_BACKEND_HCL" > /tmp/backend.hcl
+          tofu -chdir=infrastructure/terraform init -backend-config=/tmp/backend.hcl
+      - name: Detect production drift
+        env:
+          TF_VAR_environment: production
+          TF_VAR_digitalocean_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          set +e
+          tofu -chdir=infrastructure/terraform plan -detailed-exitcode -input=false -refresh=true -var-file=production.tfvars.example
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "Infrastructure drift detected"; exit 1; fi
+          exit "$code"
