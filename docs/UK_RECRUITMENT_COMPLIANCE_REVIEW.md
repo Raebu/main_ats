@@ -1,6 +1,6 @@
 # UK Recruitment Compliance Review — Stage 8
 
-**Review date:** 27 September 2026  
+**Review date:** 28 September 2026  
 **Scope:** Raeburn Talent recruitment workflows operated in Great Britain.  
 **Status:** Engineering/compliance control review complete. Independent qualified legal sign-off can be recorded in the platform's compliance-signoff register before external production.
 
@@ -13,7 +13,7 @@ Current GOV.UK guidance states that recruitment must not discriminate against di
 Raeburn Talent controls:
 - accessibility preferences are captured separately from selection evidence;
 - blind review can hide identity fields;
-- later-stage rejection requires job-related evidence and a configured reason;
+- later-stage rejection and the final hire transition require job-related evidence and a configured reason;
 - AI instructions prohibit protected-characteristic inference and autonomous hire/reject decisions;
 - adjustment information must not be used as negative selection evidence;
 - governance monitoring uses aggregated cohorts and explicitly does not infer discrimination from a statistical difference alone.
@@ -107,6 +107,10 @@ Later-stage rejection from REVIEW, SHORTLIST, INTERVIEW, FINAL_INTERVIEW or OFFE
 2. a written rationale is supplied; and
 3. job-related supporting evidence is recorded.
 
+The final OFFER → HIRED transition is likewise blocked unless an active hiring-reason code, written rationale and supporting job-related evidence are recorded. This provides an auditable explanation for both positive and negative consequential outcomes.
+
+Blind-review policy is enforced in recruiter application detail, candidate comparison and hiring-manager review surfaces using vacancy, organisation and tenant policy precedence. Direct identity/contact details and candidate documents are withheld while the policy applies.
+
 Fairness monitoring is deliberately separated from individual candidate scoring. Aggregated cohort monitoring has a minimum-group-size control and returns a review signal, not a legal conclusion or automated hiring action.
 
 ## 7. Required governance sign-offs before external production
@@ -122,7 +126,11 @@ The following should have an APPROVED record in `compliance_signoffs` for the de
 
 The sign-off record stores reviewer name, role, organisation, evidence reference, decision date and next review date.
 
-## 8. Review triggers
+## 8. Current-source verification
+
+As of 28 September 2026, GOV.UK Agency Workers Regulations guidance shows a last update of 25 March 2026, HMRC's Understanding off-payroll working (IR35) guidance shows a last update of 26 February 2026, and the ICO continues to label its recruitment and selection guidance as under review following the Data (Use and Access) Act, with final recruitment guidance planned for Winter 2026. The platform therefore preserves this review as a versioned control record and requires re-review when the ICO final guidance is published.
+
+## 9. Review triggers
 
 Repeat this review when:
 - ICO final recruitment/selection guidance implementing DUAA changes is published;
