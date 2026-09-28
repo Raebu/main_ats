@@ -5,19 +5,19 @@ import{Hono}from"hono";
 import{SignJWT,jwtVerify,createRemoteJWKSet,decodeProtectedHeader,exportJWK,importPKCS8,importSPKI}from"jose";
 import{generateAuthenticationOptions,generateRegistrationOptions,verifyAuthenticationResponse,verifyRegistrationResponse}from"@simplewebauthn/server";
 import{z}from"zod";
-import{health,pool}from"@raeburn/service-kit";
+import{health,pool,secretValue as readSecret}from"@raeburn/service-kit";
 
 const app=new Hono();
-const secret=()=>new TextEncoder().encode(process.env.AUTH_SECRET||"change-me");
+const cfg=(name:string)=>readSecret(name);const secret=()=>new TextEncoder().encode(cfg("AUTH_SECRET")||(process.env.NODE_ENV!=="production"?"change-me":(()=>{throw new Error("AUTH_SECRET is not configured")})()));
 const tenant=()=>process.env.DEFAULT_TENANT_ID||"tenant_raeburn_group";
-const mfaKey=()=>createHmac("sha256",process.env.MFA_ENCRYPTION_KEY||process.env.AUTH_SECRET||"change-me").update("mfa:"+tenant()).digest();
+const mfaKey=()=>createHmac("sha256",cfg("MFA_ENCRYPTION_KEY")||(process.env.NODE_ENV!=="production"?cfg("AUTH_SECRET")||"change-me":(()=>{throw new Error("MFA_ENCRYPTION_KEY is not configured")})())).update("mfa:"+tenant()).digest();
 const sha=(v:string)=>createHash("sha256").update(v).digest("hex");
 const b64=(b:Buffer)=>b.toString("base64url");
 const rpId=()=>process.env.WEBAUTHN_RP_ID||"talent.theraeburngroup.com";
 const rpOrigin=()=>process.env.WEBAUTHN_ORIGIN||"https://talent.theraeburngroup.com";
 const keyId=()=>process.env.AUTH_KEY_ID||"talent-primary";
 async function jwtKey(mode:"sign"|"verify"){
- const privatePem=process.env.AUTH_PRIVATE_KEY_PEM?.replace(/\\n/g,"\n"),publicPem=process.env.AUTH_PUBLIC_KEY_PEM?.replace(/\\n/g,"\n");
+ const privatePem=cfg("AUTH_PRIVATE_KEY_PEM")?.replace(/\\n/g,"\n"),publicPem=cfg("AUTH_PUBLIC_KEY_PEM")?.replace(/\\n/g,"\n");
  if(mode==="sign"&&privatePem)return{key:await importPKCS8(privatePem,"RS256"),alg:"RS256"};
  if(mode==="verify"&&publicPem)return{key:await importSPKI(publicPem,"RS256"),alg:"RS256"};
  return{key:secret(),alg:"HS256"};
@@ -27,7 +27,7 @@ async function signClaims(claims:any,expires:string){
  return new SignJWT(claims).setProtectedHeader({alg:k.alg,kid:keyId(),typ:"JWT"}).setIssuedAt().setExpirationTime(expires).sign(k.key as any);
 }
 async function verifyClaims(token:string){
- const header=decodeProtectedHeader(token),configured=process.env.AUTH_PUBLIC_KEYS_JSON;
+ const header=decodeProtectedHeader(token),configured=cfg("AUTH_PUBLIC_KEYS_JSON");
  if(configured){
    const keys=JSON.parse(configured) as Record<string,string>,pem=keys[String(header.kid||"")];
    if(pem)return (await jwtVerify(token,await importSPKI(pem.replace(/\\n/g,"\n"),"RS256"),{algorithms:["RS256"]})).payload as any;
@@ -38,10 +38,11 @@ async function verifyClaims(token:string){
 function productionSecurityIssues(){
  const issues:string[]=[];
  if(process.env.NODE_ENV==="production"){
-   if(!process.env.AUTH_PRIVATE_KEY_PEM)issues.push("AUTH_PRIVATE_KEY_PEM");
-   if(!process.env.AUTH_PUBLIC_KEY_PEM&&!process.env.AUTH_PUBLIC_KEYS_JSON)issues.push("AUTH_PUBLIC_KEY_PEM or AUTH_PUBLIC_KEYS_JSON");
-   if(!process.env.TENANT_ENCRYPTION_MASTER_KEY)issues.push("TENANT_ENCRYPTION_MASTER_KEY");
-   if(!process.env.MFA_ENCRYPTION_KEY)issues.push("MFA_ENCRYPTION_KEY");
+   if(!cfg("AUTH_PRIVATE_KEY_PEM"))issues.push("AUTH_PRIVATE_KEY_PEM");
+   if(!cfg("AUTH_PUBLIC_KEY_PEM")&&!cfg("AUTH_PUBLIC_KEYS_JSON"))issues.push("AUTH_PUBLIC_KEY_PEM or AUTH_PUBLIC_KEYS_JSON");
+   if(!cfg("TENANT_ENCRYPTION_MASTER_KEY"))issues.push("TENANT_ENCRYPTION_MASTER_KEY");
+   if(!cfg("MFA_ENCRYPTION_KEY"))issues.push("MFA_ENCRYPTION_KEY");
+   if(process.env.REQUIRE_SERVICE_AUTH==="true"&&!cfg("SERVICE_AUTH_SECRET"))issues.push("SERVICE_AUTH_SECRET");
    if(!process.env.WEBAUTHN_RP_ID||!process.env.WEBAUTHN_ORIGIN)issues.push("WEBAUTHN_RP_ID/WEBAUTHN_ORIGIN");
  }
  return issues;
@@ -137,9 +138,9 @@ app.patch("/v1/identity/users/:id/status",async c=>{const payload:any=await veri
 
 app.get("/v1/identity/jwks.json",async c=>{
  const all:any[]=[];
- const configured=process.env.AUTH_PUBLIC_KEYS_JSON?JSON.parse(process.env.AUTH_PUBLIC_KEYS_JSON) as Record<string,string>:null;
+ const configuredRaw=cfg("AUTH_PUBLIC_KEYS_JSON"),configured=configuredRaw?JSON.parse(configuredRaw) as Record<string,string>:null;
  if(configured)for(const[kid,pem]of Object.entries(configured)){const jwk:any=await exportJWK(await importSPKI(pem.replace(/\\n/g,"\n"),"RS256"));jwk.use="sig";jwk.alg="RS256";jwk.kid=kid;all.push(jwk);}
- const publicPem=process.env.AUTH_PUBLIC_KEY_PEM?.replace(/\\n/g,"\n");
+ const publicPem=cfg("AUTH_PUBLIC_KEY_PEM")?.replace(/\\n/g,"\n");
  if(publicPem&&!all.some(k=>k.kid===keyId())){const jwk:any=await exportJWK(await importSPKI(publicPem,"RS256"));jwk.use="sig";jwk.alg="RS256";jwk.kid=keyId();all.push(jwk);}
  return c.json({keys:all});
 });
@@ -217,7 +218,7 @@ app.get("/v1/identity/sso/:provider/start",async c=>{
 });
 app.post("/v1/identity/sso/:provider/callback",async c=>{
  const provider=c.req.param("provider"),b=z.object({code:z.string(),state:z.string()}).parse(await c.req.json()),state=(await pool.query("select * from oidc_states where tenant_id=$1 and provider=$2 and state_hash=$3 and expires_at>now()",[tenant(),provider,sha(b.state)])).rows[0];if(!state)return c.json({code:"INVALID_SSO_STATE",message:"SSO state is invalid or expired"},400);
- const row=(await pool.query("select * from identity_providers where tenant_id=$1 and provider=$2 and status='ENABLED'",[tenant(),provider])).rows[0],cfg=row?.config||{},discovery=await (await fetch(String(cfg.issuer).replace(/\/$/,"")+"/.well-known/openid-configuration")).json() as any,redirectUri=cfg.redirectUri||rpOrigin()+"/api/auth/sso/"+provider+"/callback",secretValue=cfg.clientSecretEnv?process.env[cfg.clientSecretEnv]:undefined;
+ const row=(await pool.query("select * from identity_providers where tenant_id=$1 and provider=$2 and status='ENABLED'",[tenant(),provider])).rows[0],cfg=row?.config||{},discovery=await (await fetch(String(cfg.issuer).replace(/\/$/,"")+"/.well-known/openid-configuration")).json() as any,redirectUri=cfg.redirectUri||rpOrigin()+"/api/auth/sso/"+provider+"/callback",secretValue=cfg.clientSecretEnv?readSecret(String(cfg.clientSecretEnv)):undefined;
  const form=new URLSearchParams({grant_type:"authorization_code",code:b.code,redirect_uri:redirectUri,client_id:cfg.clientId,code_verifier:state.code_verifier});if(secretValue)form.set("client_secret",secretValue);
  const tokenResp=await fetch(discovery.token_endpoint,{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:form});if(!tokenResp.ok)return c.json({code:"SSO_TOKEN_EXCHANGE_FAILED",message:"Identity provider rejected the authorization code"},401);const tokens:any=await tokenResp.json();
  const jwks=createRemoteJWKSet(new URL(discovery.jwks_uri)),verified:any=(await jwtVerify(tokens.id_token,jwks,{issuer:discovery.issuer,audience:cfg.clientId})).payload;if(verified.nonce!==state.nonce)return c.json({code:"SSO_NONCE_MISMATCH",message:"SSO nonce did not match"},401);
