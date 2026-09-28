@@ -62,6 +62,7 @@ app.all("/v1/*",async c=>{
  if(!match)return c.json({code:"ROUTE_NOT_FOUND",message:"No service route",correlationId},404);
  const target=new URL(url.pathname+url.search,match[1]);
  const headers=new Headers(c.req.raw.headers);
+ for(const h of["x-actor","x-actor-email","x-organisation-ids","x-service-name","x-service-timestamp","x-service-signature"])headers.delete(h);
  headers.set("x-correlation-id",correlationId);
  headers.set("x-tenant-id",tenantId);
  if(claims?.sub)headers.set("x-actor",String(claims.sub));
