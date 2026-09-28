@@ -1,15 +1,19 @@
 import fs from "node:fs";
 
 const checks = [
-  ["Administration workspace", "apps/talent-admin/app/administration/page.tsx", ["/v1/workflow/templates","/v1/interviews/templates","/v1/communications/templates","/v1/jobs/templates","/v1/privacy/retention-policies","/v1/careers-gateways","/v1/notifications/admin/policies","/v1/hooks/api-clients","/v1/hooks/subscriptions"]],
+  ["Administration workspace", "apps/talent-admin/app/administration/page.tsx", ["/v1/workflow/templates?includeInactive=true","/v1/interviews/templates?includeInactive=true","/v1/communications/templates","/v1/jobs/templates?includeInactive=true","/v1/privacy/retention-policies","/v1/careers-gateways","/v1/notifications/admin/policies","/v1/hooks/api-clients","/v1/hooks/subscriptions"]],
+  ["Administration lifecycle controls", "apps/talent-admin/components/Stage11Admin.tsx", ["Deactivate","Activate","Apply stale cleanup","Resume","/config/admin/SKILL/","/workflow/decision-reasons/"]],
   ["Configuration inheritance + rollback", "services/configuration/src/index.ts", ["/v1/config/scoped/:key","/rollback/:version","config_history"]],
   ["Feature experiments + cleanup", "services/feature-flags/src/index.ts", ["/v1/flags/experiments","/v1/flags/stale-cleanup","evaluation_count","experiment_key"]],
-  ["Reporting administration", "apps/talent-admin/components/ReportingWorkspace.tsx", ["Scheduled reports","BI / data warehouse connectors","Generated export artifacts","Executive","Board","Hiring manager"]],
-  ["Governed reporting API", "services/analytics/src/index.ts", ["/v1/analytics/report-schedules","/v1/analytics/exports","piiMode","/v1/analytics/bi-connectors"]],
-  ["Data-quality workflow", "services/analytics/src/index.ts", ["/v1/analytics/data-quality/run","/v1/analytics/data-quality/:id/remediate","DUPLICATE_CANDIDATE_","EVENT_RECONCILIATION_APPLICATION_SHORTFALL"]],
+  ["Reporting administration", "apps/talent-admin/components/ReportingWorkspace.tsx", ["Scheduled reports","BI / data warehouse connectors","Generated export artifacts","Executive","Board","Hiring manager","Full PII (permission required)","Copy ","Pause","Activate"]],
+  ["Governed reporting API", "services/analytics/src/index.ts", ["/v1/analytics/report-schedules","/v1/analytics/exports","piiMode","/v1/analytics/bi-connectors","app.patch(\"/v1/analytics/bi-connectors/:id\""]],
+  ["Data-quality workflow", "services/analytics/src/index.ts", ["/v1/analytics/data-quality/run","/v1/analytics/data-quality/:id/remediate","DUPLICATE_CANDIDATE_","DUPLICATE_VACANCY","PHONE_NORMALISATION","LOCATION_NORMALISATION","JOB_TITLE_NORMALISATION","SKILL_OUTSIDE_TAXONOMY","STALE_CANDIDATE","EVENT_RECONCILIATION_APPLICATION_SHORTFALL"]],
   ["Data-quality admin", "apps/talent-admin/components/DataQualityWorkspace.tsx", ["Run quality audit","Apply safe normalisation fixes","remediated"]],
   ["Design-system component catalogue", "packages/ui/src/components.tsx", ["FormField","DataTable","Drawer","Modal","Toast","BarChart"]],
   ["Live design-system page", "apps/talent-admin/app/design-system/page.tsx", ["Controls","Table","States and notices","@raeburn/ui"]],
+  ["Storybook configuration", ".storybook/main.mjs", ["@storybook/nextjs-vite","packages/ui/src/**/*.stories.@(js|jsx)"]],
+  ["Storybook component stories", "packages/ui/src/components.stories.jsx", ["Controls","Forms","Table","DrawerExample","ModalExample","Notifications","Chart"]],
+  ["Storybook build command", "package.json", ["storybook:build","storybook@10.6.0","@storybook/nextjs-vite@10.6.0"]],
   ["Stage 11 reporting tests", "services/analytics/src/reporting.test.ts", ["toXlsx","toPdf","\"csv\""]],
 ];
 
