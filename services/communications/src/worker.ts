@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import nodemailer from "nodemailer";
 import type { DomainEvent } from "@raeburn/events";
 import { createEvent, Events } from "@raeburn/events";
-import { consumeDurable, pool, serviceAuthHeaders, withTransaction, writeOutbox } from "@raeburn/service-kit";
+import { consumeDurable, metricInc, pool, serviceAuthHeaders, withCircuitBreaker, withTransaction, writeOutbox } from "@raeburn/service-kit";
 
 const tx = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -35,12 +35,12 @@ async function sendMessage(e:DomainEvent,applicationId:string|null,recipient:str
   if(!existing)await pool.query("insert into messages(id,tenant_id,application_id,recipient,subject,body,status,source_event_id) values($1,$2,$3,$4,$5,$6,'PENDING',$7)",[id,e.tenantId,applicationId,recipient,subject,body,e.eventId]);
   let providerId:string|undefined,status="SKIPPED";
   if(process.env.SMTP_HOST){
-    const result=await tx.sendMail({
+    const result=await withCircuitBreaker("smtp-primary",()=>tx.sendMail({
       from:process.env.SMTP_FROM||"Raeburn Talent <careers@theraeburngroup.com>",
       to:recipient,subject,text:body,disableFileAccess:true,disableUrlAccess:true,
       messageId:"<"+id+"@talent.theraeburngroup.com>"
-    });
-    providerId=result.messageId;status="SENT";
+    }),{failureThreshold:3,cooldownMs:30000});
+    providerId=result.messageId;status="SENT";metricInc("raeburn_email_send_total",{status:"SENT"});
   }
   await withTransaction(async client=>{
     await client.query("update messages set status=$2,provider_message_id=$3,sent_at=case when $2='SENT' then now() else null end where id=$1",[id,status,providerId||null]);
@@ -91,7 +91,7 @@ async function handle(subject:string){
       await pool.query("insert into processed_events(event_id) values($1) on conflict do nothing",[e.eventId]);
     }catch(err){
       console.error("communication failed",e.eventId,err);
-      await withTransaction(async client=>{await writeOutbox(client,createEvent({eventType:Events.communicationFailed,eventVersion:1,producer:"communications",correlationId:e.correlationId,causationId:e.eventId,tenantId:e.tenantId,payload:{sourceEvent:e.eventType,error:err instanceof Error?err.message:String(err)}}));});
+      metricInc("raeburn_email_failures_total",{source_event:e.eventType});await withTransaction(async client=>{await writeOutbox(client,createEvent({eventType:Events.communicationFailed,eventVersion:1,producer:"communications",correlationId:e.correlationId,causationId:e.eventId,tenantId:e.tenantId,payload:{sourceEvent:e.eventType,error:err instanceof Error?err.message:String(err)}}));});
       throw err;
     }
   },{maxDeliver:8,baseRetryMs:1000,ackWaitMs:60000});
