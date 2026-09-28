@@ -20,6 +20,7 @@ async function jwtKey(mode:"sign"|"verify"){
  const privatePem=cfg("AUTH_PRIVATE_KEY_PEM")?.replace(/\\n/g,"\n"),publicPem=cfg("AUTH_PUBLIC_KEY_PEM")?.replace(/\\n/g,"\n");
  if(mode==="sign"&&privatePem)return{key:await importPKCS8(privatePem,"RS256"),alg:"RS256"};
  if(mode==="verify"&&publicPem)return{key:await importSPKI(publicPem,"RS256"),alg:"RS256"};
+ if(process.env.NODE_ENV==="production")throw new Error("RS256 "+mode+" key is required in production");
  return{key:secret(),alg:"HS256"};
 }
 async function signClaims(claims:any,expires:string){
