@@ -209,4 +209,4 @@ app.post("/v1/applications/candidate/:candidateId/anonymise",async c=>{const x=c
 
 serve({fetch:app.fetch,port:Number(process.env.PORT||4103)});
 
-function map(r:any){return{id:r.id,tenantId:r.tenant_id,jobId:r.job_id,candidateId:r.candidate_id,organisationId:r.organisation_id,rightToWork:r.right_to_work,availability:r.availability,coverNote:r.cover_note,privacyNoticeVersion:r.privacy_notice_version,privacyAcceptedAt:r.privacy_accepted_at,attribution:r.attribution,answers:r.answers,createdAt:r.created_at};}
+function map(r:any){return{id:r.id,tenantId:r.tenant_id,jobId:r.job_id,candidateId:r.candidate_id,organisationId:r.organisation_id,status:r.status||"APPLIED",rightToWork:r.right_to_work,availability:r.availability,coverNote:r.cover_note,privacyNoticeVersion:r.privacy_notice_version,privacyAcceptedAt:r.privacy_accepted_at,attribution:r.attribution,answers:r.answers,createdAt:r.created_at};}
