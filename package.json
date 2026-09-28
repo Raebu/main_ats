@@ -41,7 +41,7 @@
     "synthetic:candidate": "node scripts/synthetic-candidate-journey.mjs",
     "db:maintenance": "node scripts/db-maintenance.mjs",
     "stage9:production-gate": "node scripts/verify-stage9-production.mjs",
-    "test:unit": "vitest run --passWithNoTests",
+    "test:unit": "vitest run packages --passWithNoTests",
     "test:e2e": "playwright test",
     "test:integration": "node scripts/ci-integration-smoke.mjs",
     "test:load": "node scripts/load-smoke.mjs",
