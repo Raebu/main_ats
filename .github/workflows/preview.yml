@@ -37,4 +37,9 @@ jobs:
           RELEASE_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           test -n "$PREVIEW_DEPLOY_WEBHOOK_URL"
-          curl --fail-with-body --silent --show-error             -X POST "$PREVIEW_DEPLOY_WEBHOOK_URL"             -H "authorization: Bearer $PREVIEW_DEPLOY_WEBHOOK_TOKEN"             -H "content-type: application/json"             --data "{"previewId":"$PREVIEW_ID","sha":"$RELEASE_SHA"}"
+          payload=$(jq -cn --arg previewId "$PREVIEW_ID" --arg sha "$RELEASE_SHA" '{previewId:$previewId,sha:$sha}')
+          curl --fail-with-body --silent --show-error \
+            -X POST "$PREVIEW_DEPLOY_WEBHOOK_URL" \
+            -H "authorization: Bearer $PREVIEW_DEPLOY_WEBHOOK_TOKEN" \
+            -H "content-type: application/json" \
+            --data "$payload"
