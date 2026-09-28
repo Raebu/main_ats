@@ -30,8 +30,20 @@ variable "cloudflare_zone_id" {
 }
 
 variable "ssh_key_fingerprints" {
-  type    = list(string)
-  default = []
+  type = list(string)
+  validation {
+    condition     = length(var.ssh_key_fingerprints) > 0
+    error_message = "At least one approved SSH key fingerprint is required."
+  }
+}
+
+variable "internet_egress_cidrs" {
+  type        = list(string)
+  description = "Approved egress proxy/NAT CIDRs. Do not use unrestricted CIDRs in production."
+  validation {
+    condition     = length(var.internet_egress_cidrs) > 0
+    error_message = "At least one approved egress CIDR is required."
+  }
 }
 
 variable "postgres_size" {
