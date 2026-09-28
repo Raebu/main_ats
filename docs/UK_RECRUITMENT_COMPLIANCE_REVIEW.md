@@ -21,7 +21,7 @@ Raeburn Talent controls:
 Official references:
 - https://www.gov.uk/recruitment-disabled-people/reasonable-adjustments
 - https://www.gov.uk/recruitment-disabled-people
-- https://www.gov.uk/rights-disabled-person/employment
+- https://www.gov.uk/rights-disabled-person/employment\n- https://www.legislation.gov.uk/ukpga/2010/15/section/60\n- https://www.legislation.gov.uk/ukpga/2010/15/schedule/8
 
 ## 2. Data protection in recruitment
 
