@@ -57,6 +57,7 @@
     "storybook:prepare": "npm install --no-save --package-lock=false --ignore-scripts storybook@10.6.0 @storybook/nextjs-vite@10.6.0",
     "stage12:readiness-gate": "node scripts/verify-stage12-readiness.mjs",
     "stage12:data-parity": "node scripts/verify-data-parity.mjs",
+    "stage12:dual-read": "node scripts/dual-read-compare.mjs",
     "stage12:completion-gate": "npm run stage12:readiness-gate && node scripts/verify-stage12-live.mjs"
   },
   "dependencies": {
