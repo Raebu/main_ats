@@ -75,3 +75,24 @@ variable "cost_centre" {
   type    = string
   default = "recruitment-platform"
 }
+
+variable "project_description" {
+  type    = string
+  default = "Raeburn Talent recruitment platform"
+}
+
+variable "alert_emails" {
+  type        = list(string)
+  default     = []
+  description = "Operational alert recipients. Empty disables provider-level email alerts."
+}
+
+variable "alert_cpu_threshold" {
+  type    = number
+  default = 85
+}
+
+variable "alert_window" {
+  type    = string
+  default = "5m"
+}
