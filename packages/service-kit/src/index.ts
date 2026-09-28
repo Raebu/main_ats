@@ -181,6 +181,11 @@ export function log(level:"debug"|"info"|"warn"|"error",message:string,fields:Re
   const record={timestamp:new Date().toISOString(),level,service:process.env.SERVICE_NAME||"raeburn-service",message,...fields};
   const line=JSON.stringify(record);
   if(level==="error")console.error(line);else if(level==="warn")console.warn(line);else console.log(line);
+  const loki=process.env.LOKI_PUSH_URL;
+  if(loki){
+    const ts=String(Date.now()*1_000_000),body={streams:[{stream:{service:String(record.service),level},values:[[ts,line]]}]};
+    void fetch(loki,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body),signal:AbortSignal.timeout(2000)}).catch(()=>{});
+  }
 }
 export async function readiness(service:string){
   const checks:Record<string,string>={database:"unknown",nats:"unknown"};

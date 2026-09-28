@@ -1,0 +1,45 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+rule_files:
+  - /etc/prometheus/alerts.yml
+scrape_configs:
+  - job_name: nats
+    static_configs:
+      - targets: ["nats-exporter:7777"]
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+  - job_name: raeburn-services
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - "host.docker.internal:4100"
+          - "host.docker.internal:4101"
+          - "host.docker.internal:4102"
+          - "host.docker.internal:4103"
+          - "host.docker.internal:4104"
+          - "host.docker.internal:4105"
+          - "host.docker.internal:4106"
+          - "host.docker.internal:4107"
+          - "host.docker.internal:4108"
+          - "host.docker.internal:4109"
+          - "host.docker.internal:4110"
+          - "host.docker.internal:4111"
+          - "host.docker.internal:4112"
+          - "host.docker.internal:4113"
+          - "host.docker.internal:4114"
+          - "host.docker.internal:4115"
+          - "host.docker.internal:4116"
+          - "host.docker.internal:4117"
+          - "host.docker.internal:4118"
+          - "host.docker.internal:4119"
+          - "host.docker.internal:4120"
+          - "host.docker.internal:4121"
+          - "host.docker.internal:4122"
+          - "host.docker.internal:4123"
+          - "host.docker.internal:4124"
+          - "host.docker.internal:4125"
+          - "host.docker.internal:4126"
+          - "host.docker.internal:4127"
+          - "host.docker.internal:4128"

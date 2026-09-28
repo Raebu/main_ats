@@ -1,0 +1,44 @@
+groups:
+  - name: raeburn-talent
+    rules:
+      - alert: TalentServiceDown
+        expr: up{job="raeburn-services"} == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "Raeburn Talent service is not scrapeable"}
+      - alert: TalentHighErrorRate
+        expr: (sum by(service)(rate(raeburn_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum by(service)(rate(raeburn_http_requests_total[5m])), 0.001)) > 0.01
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: "HTTP error SLI is outside the 99% short-window threshold"}
+      - alert: TalentDatabaseLatency
+        expr: raeburn_database_latency_ms > 250
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "Database readiness query latency is high"}
+      - alert: TalentOutboxBacklog
+        expr: raeburn_outbox_backlog > 100
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: "Transactional outbox backlog is growing"}
+      - alert: TalentEventHandlerFailures
+        expr: increase(raeburn_event_handler_failures_total[10m]) > 0
+        labels: {severity: warning}
+        annotations: {summary: "Durable event handler failures detected"}
+      - alert: TalentPublicationDLQ
+        expr: increase(raeburn_publication_dlq_total[15m]) > 0
+        labels: {severity: critical}
+        annotations: {summary: "A job-board publication reached the DLQ"}
+      - alert: TalentEmailFailures
+        expr: increase(raeburn_email_failures_total[10m]) > 0
+        labels: {severity: warning}
+        annotations: {summary: "Candidate communication failures detected"}
+      - alert: TalentSearchIndexFailures
+        expr: increase(raeburn_search_index_failures_total[10m]) > 0
+        labels: {severity: warning}
+        annotations: {summary: "Search index event failures detected"}
+      - alert: NATSExporterDown
+        expr: up{job="nats"} == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations: {summary: "NATS/JetStream monitoring is unavailable"}

@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:17-alpine
+    command: ["postgres","-c","shared_preload_libraries=pg_stat_statements","-c","track_io_timing=on","-c","log_min_duration_statement=1000","-c","wal_level=replica"]
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -15,12 +16,56 @@ services:
       timeout: 5s
       retries: 20
 
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    environment:
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: postgres
+      AUTH_TYPE: scram-sha-256
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "500"
+      DEFAULT_POOL_SIZE: "20"
+      RESERVE_POOL_SIZE: "5"
+      SERVER_RESET_QUERY: DISCARD ALL
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "6432:5432"
+    healthcheck:
+      test: ["CMD","pg_isready","-h","localhost","-p","5432"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   nats:
     image: nats:2-alpine
-    command: ["-js","-m","8222"]
+    command: ["-js","-sd","/data","-m","8222"]
     ports:
       - "4222:4222"
       - "8222:8222"
+    volumes:
+      - talent_nats:/data
+
+  nats-exporter:
+    image: natsio/prometheus-nats-exporter:0.20.1
+    command: ["-varz","-connz","-healthz","-jsz=streams,consumers","http://nats:8222"]
+    depends_on:
+      - nats
+    ports:
+      - "7777:7777"
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    environment:
+      DATA_SOURCE_NAME: postgresql://postgres:postgres@postgres:5432/postgres?sslmode=disable
+      PG_EXPORTER_AUTO_DISCOVER_DATABASES: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "9187:9187"
 
   minio:
     image: minio/minio:latest
@@ -42,9 +87,85 @@ services:
       /bin/sh -c "
       until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 2; done;
       mc mb --ignore-existing local/raeburn-talent;
+      mc version enable local/raeburn-talent;
       exit 0;
       "
 
+  prometheus:
+    image: prom/prometheus:latest
+    command: ["--config.file=/etc/prometheus/prometheus.yml","--storage.tsdb.retention.time=30d"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - talent_prometheus:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - nats-exporter
+      - postgres-exporter
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otelcol/config.yml"]
+    volumes:
+      - ./monitoring/otel-collector.yml:/etc/otelcol/config.yml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      - tempo
+
+  tempo:
+    image: grafana/tempo:latest
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes:
+      - ./monitoring/tempo.yml:/etc/tempo.yml:ro
+      - talent_tempo:/var/tempo
+    ports:
+      - "3200:3200"
+
+  loki:
+    image: grafana/loki:latest
+    command: ["-config.file=/etc/loki/local-config.yml"]
+    volumes:
+      - ./monitoring/loki.yml:/etc/loki/local-config.yml:ro
+      - talent_loki:/loki
+    ports:
+      - "3100:3100"
+
+  promtail:
+    image: grafana/promtail:latest
+    command: ["-config.file=/etc/promtail/config.yml"]
+    volumes:
+      - ./monitoring/promtail.yml:/etc/promtail/config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./monitoring/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - talent_grafana:/var/lib/grafana
+    ports:
+      - "3005:3000"
+    depends_on:
+      - prometheus
+      - tempo
+      - loki
+
 volumes:
   talent_postgres: {}
+  talent_nats: {}
   talent_objects: {}
+  talent_prometheus: {}
+  talent_tempo: {}
+  talent_loki: {}
+  talent_grafana: {}
