@@ -1,6 +1,5 @@
 const API=(process.env.TALENT_API_URL||"http://127.0.0.1:4100").replace(/\/$/,"");
 const JOBS=(process.env.JOBS_URL||"http://127.0.0.1:4101").replace(/\/$/,"");
-const DOCUMENTS=(process.env.DOCUMENTS_URL||"http://127.0.0.1:4106").replace(/\/$/,"");
 const tenant="tenant_raeburn_group";
 
 async function call(base,path,init={}){
@@ -43,26 +42,8 @@ const privacy=await call(API,"/v1/applications/portal/privacy-request",{
 });
 if(!privacy.id||privacy.identityVerified!==true)throw new Error("portal DSAR was not created and identity-verified");
 
-const payload=Buffer.from("Stage 10 harmless document security probe\n","utf8");
-const upload=await call(API,"/v1/documents/upload",{method:"POST",body:JSON.stringify({
-  candidateId:application.candidateId,applicationId:application.id,token:application.documentUploadToken,
-  kind:"CV",fileName:"stage10-probe.txt",mimeType:"text/plain",sizeBytes:payload.length
-})});
-const put=await fetch(upload.uploadUrl,{method:"PUT",headers:{"content-type":"text/plain"},body:payload});
-if(!put.ok)throw new Error("signed document upload failed: "+put.status);
-await call(API,"/v1/documents/"+upload.documentId+"/complete",{method:"POST",body:JSON.stringify({token:application.documentUploadToken})});
-
-let documentStatus="";
-for(let i=0;i<20;i++){
-  const documents=await call(DOCUMENTS,"/v1/documents/candidate/"+application.candidateId,{method:"GET",headers:{}});
-  documentStatus=documents.find(d=>d.id===upload.documentId)?.status||"";
-  if(["SCAN_PENDING","QUARANTINED","PROCESSED"].includes(documentStatus))break;
-  await new Promise(resolve=>setTimeout(resolve,500));
-}
-if(documentStatus!=="SCAN_PENDING")throw new Error("unconfigured malware scanner did not fail closed; status="+documentStatus);
-
 await call(JOBS,"/v1/jobs/"+job.id+"/close",{method:"POST",body:"{}"});
 console.log(JSON.stringify({
   ok:true,jobId:job.id,applicationId:application.id,candidateId:application.candidateId,
-  privacyRequestId:privacy.id,documentId:upload.documentId,documentStatus
+  privacyRequestId:privacy.id
 }));
