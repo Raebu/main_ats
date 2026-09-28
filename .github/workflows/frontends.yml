@@ -46,11 +46,17 @@ jobs:
             name="$1"; root="$2"
             code=$(curl -sS -o /tmp/project.json -w '%{http_code}'               -H "Authorization: Bearer $VERCEL_TOKEN"               "https://api.vercel.com/v9/projects/$name?teamId=$VERCEL_TEAM_ID")
             if [ "$code" = "404" ]; then
-              curl -fsS -X POST "https://api.vercel.com/v9/projects?teamId=$VERCEL_TEAM_ID"                 -H "Authorization: Bearer $VERCEL_TOKEN" -H 'Content-Type: application/json'                 --data "{"name":"$name","framework":"nextjs","rootDirectory":"$root"}" > /tmp/project.json
+              payload=$(jq -nc --arg name "$name" --arg root "$root" '{name:$name,framework:"nextjs",rootDirectory:$root}')
+              curl -fsS -X POST "https://api.vercel.com/v9/projects?teamId=$VERCEL_TEAM_ID" \
+                -H "Authorization: Bearer $VERCEL_TOKEN" -H 'Content-Type: application/json' \
+                --data "$payload" > /tmp/project.json
             elif [ "$code" != "200" ]; then
               cat /tmp/project.json; exit 1
             else
-              curl -fsS -X PATCH "https://api.vercel.com/v9/projects/$name?teamId=$VERCEL_TEAM_ID"                 -H "Authorization: Bearer $VERCEL_TOKEN" -H 'Content-Type: application/json'                 --data "{"framework":"nextjs","rootDirectory":"$root"}" > /tmp/project.json
+              payload=$(jq -nc --arg root "$root" '{framework:"nextjs",rootDirectory:$root}')
+              curl -fsS -X PATCH "https://api.vercel.com/v9/projects/$name?teamId=$VERCEL_TEAM_ID" \
+                -H "Authorization: Bearer $VERCEL_TOKEN" -H 'Content-Type: application/json' \
+                --data "$payload" > /tmp/project.json
             fi
           }
           ensure_project "$ADMIN_PROJECT" "apps/talent-admin"
