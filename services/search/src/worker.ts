@@ -1,6 +1,6 @@
 import{randomUUID}from"node:crypto";
 import type{DomainEvent}from"@raeburn/events";
-import{consumeDurable,pool,serviceAuthHeaders}from"@raeburn/service-kit";
+import{consumeDurable,metricInc,pool,resilientFetch,serviceAuthHeaders,withWorkerLease}from"@raeburn/service-kit";
 
 const SEARCH_URL=process.env.SEARCH_URL||"http://localhost:4125";
 const NOTIFICATIONS_URL=process.env.NOTIFICATIONS_URL||"http://localhost:4112";
@@ -24,15 +24,14 @@ async function runSavedSearchAlerts(){
  const due=(await pool.query("select * from saved_searches where alert_enabled=true and coalesce(next_alert_at,now())<=now() order by next_alert_at nulls first limit 100")).rows;
  for(const s of due){try{
    const qs=new URLSearchParams({q:s.query||"",filters:JSON.stringify(s.filters||{}),limit:"250",semantic:"true"});if(s.resource_type)qs.set("type",s.resource_type);
-   const response=await fetch(SEARCH_URL+"/v1/search?"+qs,{headers:serviceAuthHeaders({"x-tenant-id":s.tenant_id,"x-actor":s.user_id})});
+   const response=await resilientFetch(SEARCH_URL+"/v1/search?"+qs,{headers:serviceAuthHeaders({"x-tenant-id":s.tenant_id,"x-actor":s.user_id})},{circuit:"search-self",attempts:2});
    if(!response.ok)throw new Error("search alert query returned "+response.status);
    const data:any=await response.json(),count=Array.isArray(data.results)?data.results.length:0,newCount=Math.max(0,count-Number(s.last_result_count||0)),runId=randomUUID();
    await pool.query("insert into search_alert_runs(id,tenant_id,saved_search_id,user_id,result_count,new_result_count,sample_results) values($1,$2,$3,$4,$5,$6,$7::jsonb)",[runId,s.tenant_id,s.id,s.user_id,count,newCount,JSON.stringify((data.results||[]).slice(0,10).map((r:any)=>({id:r.id,type:r.type,title:r.title})))]);
    await pool.query("update saved_searches set last_alert_at=now(),next_alert_at=now()+(alert_interval_minutes||' minutes')::interval,last_result_count=$3 where tenant_id=$1 and id=$2",[s.tenant_id,s.id,count]);
-   if(newCount>0)await fetch(NOTIFICATIONS_URL+"/internal/notifications",{method:"POST",headers:serviceAuthHeaders({"content-type":"application/json","x-tenant-id":s.tenant_id}),body:JSON.stringify({tenantId:s.tenant_id,userId:s.user_id,kind:"SAVED_SEARCH_ALERT",title:newCount+" new talent search result"+(newCount===1?"":"s"),body:'Saved search "'+s.name+'" has new matches.',resourceType:"saved_search",resourceId:s.id})});
+   if(newCount>0)await resilientFetch(NOTIFICATIONS_URL+"/internal/notifications",{method:"POST",headers:serviceAuthHeaders({"content-type":"application/json","x-tenant-id":s.tenant_id}),body:JSON.stringify({tenantId:s.tenant_id,userId:s.user_id,kind:"SAVED_SEARCH_ALERT",title:newCount+" new talent search result"+(newCount===1?"":"s"),body:'Saved search "'+s.name+'" has new matches.',resourceType:"saved_search",resourceId:s.id})},{circuit:"notifications",idempotent:true});
  }catch(err){console.error(JSON.stringify({service:"search-worker",event:"saved_search_alert_failed",savedSearchId:s.id,error:String(err)}));}}
 }
-setInterval(()=>void runSavedSearchAlerts(),60000).unref();
-void runSavedSearchAlerts();
+const alertRun=()=>withWorkerLease("saved-search-alerts",runSavedSearchAlerts).catch(console.error);setInterval(alertRun,60000).unref();void alertRun();
 
-await consumeDurable(">","search-index",async(e:DomainEvent)=>{const p:any=e.payload||{};try{if(e.eventType.startsWith("candidate.")&&p.id)await indexCandidate(e,p);if(e.eventType.startsWith("job.")&&p.id)await indexJob(e,p);}catch(err){console.error(JSON.stringify({service:"search-worker",event:"index_failed",eventId:e.eventId,eventType:e.eventType,error:String(err)}));throw err;}});
+await consumeDurable(">","search-index",async(e:DomainEvent)=>{const p:any=e.payload||{};try{if(e.eventType.startsWith("candidate.")&&p.id){await indexCandidate(e,p);metricInc("raeburn_search_index_total",{type:"candidate"});}if(e.eventType.startsWith("job.")&&p.id){await indexJob(e,p);metricInc("raeburn_search_index_total",{type:"job"});}}catch(err){metricInc("raeburn_search_index_failures_total",{event_type:e.eventType});console.error(JSON.stringify({service:"search-worker",event:"index_failed",eventId:e.eventId,eventType:e.eventType,error:String(err)}));throw err;}});
