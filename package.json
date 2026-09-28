@@ -39,7 +39,8 @@
     "db:restore-drill": "node scripts/restore-drill.mjs",
     "db:provision-roles": "node scripts/provision-db-roles.mjs",
     "synthetic:candidate": "node scripts/synthetic-candidate-journey.mjs",
-    "db:maintenance": "node scripts/db-maintenance.mjs"
+    "db:maintenance": "node scripts/db-maintenance.mjs",
+    "stage9:production-gate": "node scripts/verify-stage9-production.mjs"
   },
   "dependencies": {
     "@prisma/client": "6.12.0",
