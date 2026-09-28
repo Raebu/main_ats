@@ -3,9 +3,9 @@ import{serve}from"@hono/node-server";
 import{Hono}from"hono";
 import{z}from"zod";
 import{createEvent}from"@raeburn/events";
-import{context,health,pool,publish}from"@raeburn/service-kit";
+import{context,health,pool,publish,installServiceRuntime}from"@raeburn/service-kit";
 
-const app=new Hono();
+const app=new Hono();installServiceRuntime(app,"assessments");
 app.get("/health",async c=>c.json(await health("assessments")));
 
 app.get("/v1/assessments",async c=>{const x=context(c.req.raw.headers),applicationId=c.req.query("applicationId");const r=applicationId?await pool.query("select * from assessments where tenant_id=$1 and application_id=$2 order by created_at desc",[x.tenantId,applicationId]):await pool.query("select * from assessments where tenant_id=$1 order by created_at desc limit 250",[x.tenantId]);return c.json(r.rows);});

@@ -1,5 +1,5 @@
-import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{z}from"zod";import{context,health,pool}from"@raeburn/service-kit";
-const app=new Hono();
+import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{z}from"zod";import{context,health,pool,installServiceRuntime}from"@raeburn/service-kit";
+const app=new Hono();installServiceRuntime(app,"configuration");
 app.get("/health",async c=>c.json(await health("configuration")));
 app.get("/v1/config/:key",async c=>{const x=context(c.req.raw.headers);const{rows}=await pool.query("select value from tenant_config where tenant_id=$1 and key=$2",[x.tenantId,c.req.param("key")]);return rows[0]?c.json(rows[0].value):c.json({code:"NOT_FOUND",message:"Configuration not found"},404);});
 app.put("/v1/config/:key",async c=>{const x=context(c.req.raw.headers),value=z.unknown().parse(await c.req.json());await pool.query("insert into tenant_config(tenant_id,key,value) values($1,$2,$3::jsonb) on conflict(tenant_id,key) do update set value=excluded.value,updated_at=now()",[x.tenantId,c.req.param("key"),JSON.stringify(value)]);return c.json({ok:true});});

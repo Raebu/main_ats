@@ -3,9 +3,9 @@ import{serve}from"@hono/node-server";
 import{Hono}from"hono";
 import{z}from"zod";
 import{createEvent,Events}from"@raeburn/events";
-import{context,health,pool,withTransaction,writeOutbox}from"@raeburn/service-kit";
+import{context,health,pool,withTransaction,writeOutbox,installServiceRuntime}from"@raeburn/service-kit";
 
-const app=new Hono();
+const app=new Hono();installServiceRuntime(app,"candidates");
 const CandidateInput=z.object({email:z.string().email(),name:z.string().min(2),telephone:z.string().optional(),location:z.string().optional(),linkedIn:z.string().optional(),portfolio:z.string().optional()});
 const StructuredProfile=z.object({
  profile:z.record(z.string(),z.unknown()).optional(),tags:z.array(z.string()).optional(),customFields:z.record(z.string(),z.unknown()).optional(),

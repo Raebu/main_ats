@@ -1,5 +1,5 @@
-import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{context,health,pool,serviceAuthHeaders}from"@raeburn/service-kit";
-const app=new Hono();
+import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{context,health,pool,serviceAuthHeaders,installServiceRuntime}from"@raeburn/service-kit";
+const app=new Hono();installServiceRuntime(app,"analytics");
 app.get("/health",async c=>c.json(await health("analytics")));
 app.get("/v1/analytics/funnel",async c=>{const x=context(c.req.raw.headers),days=Math.min(Math.max(Number(c.req.query("days")||90),1),730);const{rows}=await pool.query("select event_type,count(*)::int as count from fact_events where tenant_id=$1 and occurred_at>=now()-($2||' days')::interval group by event_type order by event_type",[x.tenantId,days]);return c.json(Object.fromEntries(rows.map(r=>[r.event_type,r.count])));});
 app.get("/v1/analytics/timeseries",async c=>{const x=context(c.req.raw.headers),days=Math.min(Math.max(Number(c.req.query("days")||30),1),365),eventType=c.req.query("eventType");const values:any[]=[x.tenantId,days];let where="tenant_id=$1 and occurred_at>=now()-($2||' days')::interval";if(eventType){values.push(eventType);where+=" and event_type=$3";}const{rows}=await pool.query("select date_trunc('day',occurred_at) day,event_type,count(*)::int count from fact_events where "+where+" group by 1,2 order by 1,2",values);return c.json(rows);});

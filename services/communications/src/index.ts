@@ -1,5 +1,5 @@
-import{serve}from"@hono/node-server";import{Hono}from"hono";import{health,pool,context}from"@raeburn/service-kit";
-const app=new Hono();
+import{serve}from"@hono/node-server";import{Hono}from"hono";import{health,pool,context,installServiceRuntime}from"@raeburn/service-kit";
+const app=new Hono();installServiceRuntime(app,"communications");
 app.get("/health",async c=>c.json(await health("communications")));
 app.get("/v1/communications/application/:id",async c=>{const x=context(c.req.raw.headers);const{rows}=await pool.query("select * from messages where tenant_id=$1 and application_id=$2 order by created_at desc",[x.tenantId,c.req.param("id")]);return c.json(rows);});
 app.post("/v1/communications/application/:id/redact",async c=>{const x=context(c.req.raw.headers),applicationId=c.req.param("id");const{rowCount}=await pool.query("update messages set recipient='redacted@privacy.invalid',subject='Redacted',body='Redacted for privacy request',provider_message_id=null where tenant_id=$1 and application_id=$2",[x.tenantId,applicationId]);return c.json({applicationId,messagesRedacted:rowCount||0});});

@@ -4,9 +4,9 @@ import{Hono}from"hono";
 import{SignJWT}from"jose";
 import{CreateApplicationContract}from"@raeburn/contracts";
 import{createEvent,Events}from"@raeburn/events";
-import{context,health,pool,serviceAuthHeaders,withTransaction,writeOutbox}from"@raeburn/service-kit";
+import{context,health,pool,serviceAuthHeaders,withTransaction,writeOutbox,installServiceRuntime}from"@raeburn/service-kit";
 
-const app=new Hono();
+const app=new Hono();installServiceRuntime(app,"applications");
 const CANDIDATES=process.env.CANDIDATES_URL||"http://localhost:4102";
 const JOBS=process.env.JOBS_URL||"http://localhost:4101";
 const ATTRIBUTION=process.env.ATTRIBUTION_URL||"http://localhost:4104";

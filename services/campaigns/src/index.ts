@@ -1,5 +1,5 @@
-import{createHash,randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{z}from"zod";import QRCode from"qrcode";import{context,health,pool}from"@raeburn/service-kit";
-const app=new Hono();
+import{createHash,randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{z}from"zod";import QRCode from"qrcode";import{context,health,pool,installServiceRuntime}from"@raeburn/service-kit";
+const app=new Hono();installServiceRuntime(app,"campaigns");
 const createCampaign=z.object({name:z.string().min(2),slug:z.string().regex(/^[a-z0-9-]+$/),metadata:z.record(z.string(),z.unknown()).default({}),budget:z.number().nonnegative().optional(),currency:z.string().default("GBP"),audience:z.record(z.string(),z.unknown()).default({}),startsAt:z.string().datetime().optional(),endsAt:z.string().datetime().optional(),campaignType:z.enum(["GENERAL","CAREERS_FAIR","EVENT","UNIVERSITY","VETERAN","RETURNER","FOUNDER","EMPLOYEE_ADVOCACY"]).default("GENERAL"),objective:z.string().optional(),landing:z.record(z.string(),z.unknown()).default({})});
 function bucket(seed:string){return parseInt(createHash("sha256").update(seed).digest("hex").slice(0,8),16)%10000;}
 async function campaign(tenantId:string,idOrSlug:string){return(await pool.query("select * from campaigns where tenant_id=$1 and (id=$2 or slug=$2)",[tenantId,idOrSlug])).rows[0];}
