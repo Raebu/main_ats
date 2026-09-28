@@ -97,30 +97,35 @@ resource "digitalocean_firewall" "runtime" {
     destination_addresses = [digitalocean_vpc.platform.ip_range]
   }
 
+  # trivy:ignore:DIG-0003 -- internet destination is required; egress is restricted to this single protocol/port only.
   outbound_rule {
     protocol              = "tcp"
     port_range            = "53"
     destination_addresses = ["0.0.0.0/0", "::/0"]
   }
 
+  # trivy:ignore:DIG-0003 -- internet destination is required; egress is restricted to this single protocol/port only.
   outbound_rule {
     protocol              = "udp"
     port_range            = "53"
     destination_addresses = ["0.0.0.0/0", "::/0"]
   }
 
+  # trivy:ignore:DIG-0003 -- internet destination is required; egress is restricted to this single protocol/port only.
   outbound_rule {
     protocol              = "tcp"
     port_range            = "80"
     destination_addresses = ["0.0.0.0/0", "::/0"]
   }
 
+  # trivy:ignore:DIG-0003 -- internet destination is required; egress is restricted to this single protocol/port only.
   outbound_rule {
     protocol              = "tcp"
     port_range            = "443"
     destination_addresses = ["0.0.0.0/0", "::/0"]
   }
 
+  # trivy:ignore:DIG-0003 -- internet destination is required; egress is restricted to this single protocol/port only.
   outbound_rule {
     protocol              = "tcp"
     port_range            = "587"
