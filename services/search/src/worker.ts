@@ -2,7 +2,7 @@ import{randomUUID}from"node:crypto";
 import type{DomainEvent}from"@raeburn/events";
 import{consumeDurable,metricInc,pool,resilientFetch,serviceAuthHeaders,withWorkerLease}from"@raeburn/service-kit";
 
-const SEARCH_URL=process.env.SEARCH_URL||"http://localhost:4125";
+const SEARCH_URL=process.env.SEARCH_URL||"http://localhost:4125";\nconst CANDIDATES_URL=process.env.CANDIDATES_URL||"http://localhost:4102";
 const NOTIFICATIONS_URL=process.env.NOTIFICATIONS_URL||"http://localhost:4112";
 
 function names(list:any){return(Array.isArray(list)?list:[]).map((x:any)=>typeof x==="string"?x:(x?.name||x?.title||x?.value)).filter(Boolean);}
@@ -34,4 +34,4 @@ async function runSavedSearchAlerts(){
 }
 const alertRun=()=>withWorkerLease("saved-search-alerts",runSavedSearchAlerts).catch(console.error);setInterval(alertRun,60000).unref();void alertRun();
 
-await consumeDurable(">","search-index",async(e:DomainEvent)=>{const p:any=e.payload||{};try{if(e.eventType.startsWith("candidate.")&&p.id){await indexCandidate(e,p);metricInc("raeburn_search_index_total",{type:"candidate"});}if(e.eventType.startsWith("job.")&&p.id){await indexJob(e,p);metricInc("raeburn_search_index_total",{type:"job"});}}catch(err){metricInc("raeburn_search_index_failures_total",{event_type:e.eventType});console.error(JSON.stringify({service:"search-worker",event:"index_failed",eventId:e.eventId,eventType:e.eventType,error:String(err)}));throw err;}});
+await consumeDurable(">","search-index",async(e:DomainEvent)=>{const p:any=e.payload||{};try{if(e.eventType.startsWith("candidate.")&&p.id){const r=await resilientFetch(CANDIDATES_URL+"/v1/candidates/"+p.id,{headers:serviceAuthHeaders({"x-tenant-id":e.tenantId,"x-correlation-id":e.correlationId})},{circuit:"candidates-read",attempts:3});if(!r.ok)throw new Error("candidate hydration failed: "+r.status);await indexCandidate(e,await r.json());metricInc("raeburn_search_index_total",{type:"candidate"});}if(e.eventType.startsWith("job.")&&p.id){await indexJob(e,p);metricInc("raeburn_search_index_total",{type:"job"});}}catch(err){metricInc("raeburn_search_index_failures_total",{event_type:e.eventType});console.error(JSON.stringify({service:"search-worker",event:"index_failed",eventId:e.eventId,eventType:e.eventType,error:String(err)}));throw err;}});
