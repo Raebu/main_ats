@@ -49,7 +49,6 @@ For each GitHub environment used by the Infrastructure workflow configure:
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_ZONE_ID`
 - `TF_VAR_SSH_KEY_FINGERPRINTS`
-- `TF_VAR_INTERNET_EGRESS_CIDRS`
 - `TF_VAR_ALERT_EMAILS`
 - `TF_BACKEND_HCL`
 - `TF_STATE_ACCESS_KEY`
