@@ -7,9 +7,30 @@ import { consumeDurable, metricInc, pool, serviceAuthHeaders, withCircuitBreaker
 const tx = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT || 587),
-  secure: false,
+  secure: process.env.SMTP_SECURE==="true",
   auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined
 });
+const fallbackTx = process.env.SMTP_FALLBACK_HOST ? nodemailer.createTransport({
+  host: process.env.SMTP_FALLBACK_HOST,
+  port: Number(process.env.SMTP_FALLBACK_PORT || 587),
+  secure: process.env.SMTP_FALLBACK_SECURE==="true",
+  auth: process.env.SMTP_FALLBACK_USER ? { user: process.env.SMTP_FALLBACK_USER, pass: process.env.SMTP_FALLBACK_PASS } : undefined
+}) : null;
+
+async function deliverMail(message:any){
+  let primaryError:unknown;
+  if(process.env.SMTP_HOST){
+    try{return await withCircuitBreaker("smtp-primary",()=>tx.sendMail(message),{failureThreshold:3,cooldownMs:30000});}
+    catch(error){primaryError=error;metricInc("raeburn_email_provider_failures_total",{provider:"primary"});}
+  }
+  if(fallbackTx){
+    metricInc("raeburn_email_failover_total",{provider:"fallback"});
+    try{return await withCircuitBreaker("smtp-fallback",()=>fallbackTx.sendMail({...message,from:process.env.SMTP_FALLBACK_FROM||message.from}),{failureThreshold:3,cooldownMs:30000});}
+    catch(error){metricInc("raeburn_email_provider_failures_total",{provider:"fallback"});throw error;}
+  }
+  if(primaryError)throw primaryError;
+  return null;
+}
 
 const APPLICATIONS = process.env.APPLICATIONS_URL || "http://localhost:4103";
 const CANDIDATES = process.env.CANDIDATES_URL || "http://localhost:4102";
@@ -34,13 +55,13 @@ async function sendMessage(e:DomainEvent,applicationId:string|null,recipient:str
   const id=existing?.id||randomUUID();
   if(!existing)await pool.query("insert into messages(id,tenant_id,application_id,recipient,subject,body,status,source_event_id) values($1,$2,$3,$4,$5,$6,'PENDING',$7)",[id,e.tenantId,applicationId,recipient,subject,body,e.eventId]);
   let providerId:string|undefined,status="SKIPPED";
-  if(process.env.SMTP_HOST){
-    const result=await withCircuitBreaker("smtp-primary",()=>tx.sendMail({
+  if(process.env.SMTP_HOST||fallbackTx){
+    const result=await deliverMail({
       from:process.env.SMTP_FROM||"Raeburn Talent <careers@theraeburngroup.com>",
       to:recipient,subject,text:body,disableFileAccess:true,disableUrlAccess:true,
       messageId:"<"+id+"@talent.theraeburngroup.com>"
-    }),{failureThreshold:3,cooldownMs:30000});
-    providerId=result.messageId;status="SENT";metricInc("raeburn_email_send_total",{status:"SENT"});
+    });
+    if(result){providerId=result.messageId;status="SENT";metricInc("raeburn_email_send_total",{status:"SENT"});}
   }
   await withTransaction(async client=>{
     await client.query("update messages set status=$2,provider_message_id=$3,sent_at=case when $2='SENT' then now() else null end where id=$1",[id,status,providerId||null]);
