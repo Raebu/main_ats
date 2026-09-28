@@ -96,6 +96,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.qualify.outputs.sha }}
+      - uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+      - name: Open deploy-only SSH access
+        run: |
+          set -euo pipefail
+          ip=$(curl -fsS https://api.ipify.org)
+          fw=$(doctl compute firewall list --format ID,Name --no-header | awk '$2=="raeburn-talent-staging-runtime-fw"{print $1}')
+          test -n "$fw"
+          doctl compute firewall add-rules "$fw" --inbound-rules "protocol:tcp,ports:22,address:$ip/32"
       - name: Deploy immutable release to staging
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -107,6 +117,14 @@ jobs:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/deploy-ssh.sh
+      - name: Close deploy-only SSH access
+        if: always()
+        run: |
+          set +e
+          ip=$(curl -fsS https://api.ipify.org)
+          fw=$(doctl compute firewall list --format ID,Name --no-header | awk '$2=="raeburn-talent-staging-runtime-fw"{print $1}')
+          [ -n "$fw" ] && doctl compute firewall remove-rules "$fw" --inbound-rules "protocol:tcp,ports:22,address:$ip/32"
+          exit 0
       - name: Staging smoke test
         env:
           SMOKE_BASE_URL: ${{ vars.BASE_URL }}
@@ -127,6 +145,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.qualify.outputs.sha }}
+      - uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+      - name: Open deploy-only SSH access
+        run: |
+          set -euo pipefail
+          ip=$(curl -fsS https://api.ipify.org)
+          fw=$(doctl compute firewall list --format ID,Name --no-header | awk '$2=="raeburn-talent-production-runtime-fw"{print $1}')
+          test -n "$fw"
+          doctl compute firewall add-rules "$fw" --inbound-rules "protocol:tcp,ports:22,address:$ip/32"
       - name: Progressive production deployment
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -138,6 +166,14 @@ jobs:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/deploy-ssh.sh
+      - name: Close deploy-only SSH access
+        if: always()
+        run: |
+          set +e
+          ip=$(curl -fsS https://api.ipify.org)
+          fw=$(doctl compute firewall list --format ID,Name --no-header | awk '$2=="raeburn-talent-production-runtime-fw"{print $1}')
+          [ -n "$fw" ] && doctl compute firewall remove-rules "$fw" --inbound-rules "protocol:tcp,ports:22,address:$ip/32"
+          exit 0
       - name: Production smoke test
         id: smoke
         continue-on-error: true
