@@ -58,11 +58,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build representative production image
-        run: docker build -f infrastructure/production/Dockerfile.workspace --build-arg WORKSPACE=@raeburn/api-gateway -t raeburn-talent-gateway:ci .
-      - uses: aquasecurity/trivy-action@v0.36.0
+      - name: Build production deployment images
+        run: |
+          docker build -f infrastructure/production/Dockerfile.unit -t raeburn-talent-unit:ci .
+          docker build -f infrastructure/production/Dockerfile.malware-scanner -t raeburn-talent-scanner:ci .
+      - name: Scan application unit image
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: raeburn-talent-gateway:ci
+          image-ref: raeburn-talent-unit:ci
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+      - name: Scan malware scanner image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: raeburn-talent-scanner:ci
           severity: HIGH,CRITICAL
           exit-code: "1"
           ignore-unfixed: true
