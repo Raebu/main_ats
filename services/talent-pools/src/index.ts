@@ -1,5 +1,5 @@
-import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{z}from"zod";import{createEvent,Events}from"@raeburn/events";import{context,health,pool,withTransaction,writeOutbox,serviceAuthHeaders}from"@raeburn/service-kit";
-const app=new Hono();
+import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{z}from"zod";import{createEvent,Events}from"@raeburn/events";import{context,health,pool,withTransaction,writeOutbox,serviceAuthHeaders,installServiceRuntime}from"@raeburn/service-kit";
+const app=new Hono();installServiceRuntime(app,"talent-pools");
 const CANDIDATES_URL=process.env.CANDIDATES_URL||"http://localhost:4102";
 async function candidates(tenantId:string){const out:any[]=[];for(let offset=0;offset<1000;offset+=250){const r=await fetch(CANDIDATES_URL+"/v1/candidates?limit=250&offset="+offset,{headers:serviceAuthHeaders({"x-tenant-id":tenantId})});if(!r.ok)break;const page:any[]=await r.json();out.push(...page);if(page.length<250)break;}return out;}
 function textValues(v:any){return(Array.isArray(v)?v:[]).map((x:any)=>typeof x==="string"?x:(x?.name||x?.title||x?.value)).filter(Boolean).map((x:any)=>String(x).toLowerCase());}
