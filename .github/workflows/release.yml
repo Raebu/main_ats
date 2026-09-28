@@ -21,7 +21,7 @@ env:
 
 jobs:
   qualify:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: vars.RELEASE_ENABLED == 'true' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     outputs:
       sha: ${{ steps.sha.outputs.value }}
