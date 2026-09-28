@@ -18,7 +18,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "test": "vitest run --passWithNoTests",
-    "infra:up": "docker compose -f infrastructure/docker-compose.yml up -d",
+    "infra:up": "docker compose -f infrastructure/docker-compose.yml up -d && npm run object-storage:init",
     "infra:down": "docker compose -f infrastructure/docker-compose.yml down",
     "service:jobs": "npm --workspace @raeburn/jobs-service start",
     "service:candidates": "npm --workspace @raeburn/candidates-service start",
@@ -49,7 +49,8 @@
     "test:contracts": "vitest run packages/events/src/registry.test.ts packages/policy/src/index.test.ts",
     "stage10:validate": "npm run migrate:validate && npm run test:contracts && npm run typecheck",
     "test:security-integration": "node scripts/ci-security-isolation.mjs",
-    "stage10:completion-gate": "node scripts/verify-stage10-completion.mjs"
+    "stage10:completion-gate": "node scripts/verify-stage10-completion.mjs",
+    "object-storage:init": "node scripts/init-object-storage.mjs"
   },
   "dependencies": {
     "@prisma/client": "6.12.0",
