@@ -1,0 +1,16 @@
+import fs from"node:fs";
+const failures=[];const expect=(path,needles=[])=>{if(!fs.existsSync(path)){failures.push("missing "+path);return;}const b=fs.readFileSync(path,"utf8");for(const n of needles)if(!b.includes(n))failures.push(path+" missing "+n);};
+expect("services/platform/src/index.ts",["/v1/platform/tenants","entitlements","subscriptions","usage","billing","domains","api-keys","support","/sla/","/regions"]);
+expect("services/platform/migrations/001_stage12_commercialisation.sql",["platform_tenants","usage_meters","custom_domains","customer_api_keys","sla_policies"]);
+expect("apps/talent-admin/components/PlatformWorkspace.tsx",["Tenant provisioning & branding","Commercial controls","Customer API key","Customer support"]);
+expect("services/malware-scanner/src/index.ts",["clamscan","/scan","file_too_large_for_scanner"]);
+expect("infrastructure/production/Dockerfile.malware-scanner",["clamav","freshclam"]);
+expect("services/documents/src/worker.ts",["MALWARE_SCANNER_URL","SCAN_PENDING","development-bypass"]);
+expect("services/communications/src/worker.ts",["SMTP_HOST","SMTP_FALLBACK_HOST","smtp-primary"]);
+expect("services/identity/src/index.ts",["identity_providers","OIDC","sso"]);
+expect("infrastructure/terraform/main.tf",["digitalocean_database_cluster","-js -sd /data","cloudflare_r2_bucket","cloudflare_record","cloudflare_ruleset","digitalocean_monitor_alert"]);
+expect("infrastructure/production/deployment-units.json",["edge-api","recruitment-core","platform-control","malware-scanner"]);
+expect("scripts/verify-data-parity.mjs",["LEGACY_DATABASE_URL","delta"]);
+expect("scripts/verify-stage12-live.mjs",["penetrationTestPassed","legacyRoutesRetired","dataParity"]);
+for(const p of["docs/STAGE12_PRODUCTION.md","docs/CUTOVER.md","docs/RUNBOOKS.md","docs/INCIDENT_RESPONSE.md","docs/SLO.md","docs/SERVICE_OWNERS.md","docs/CHANGE_MANAGEMENT.md","docs/POSTMORTEM_TEMPLATE.md","docs/CUSTOMER_PLATFORM.md","docs/PENETRATION_TEST.md"])expect(p);
+console.log(JSON.stringify({stage:12,gate:"production-readiness",status:failures.length?"FAILED":"PASSED",failures},null,2));if(failures.length)process.exit(1);
