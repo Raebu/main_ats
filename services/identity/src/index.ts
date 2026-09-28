@@ -159,8 +159,8 @@ app.post("/v1/identity/refresh",async c=>{
 app.post("/v1/identity/password-reset/request",async c=>{
  const b=z.object({email:z.string().email()}).parse(await c.req.json()),email=b.email.toLowerCase(),user=(await pool.query("select id from users where tenant_id=$1 and email=$2 and status='ACTIVE'",[tenant(),email])).rows[0];
  if(user){const raw="rst_"+b64(randomBytes(36)),id=randomUUID();await pool.query("update password_reset_tokens set used_at=now() where tenant_id=$1 and user_id=$2 and used_at is null",[tenant(),user.id]);await pool.query("insert into password_reset_tokens(id,tenant_id,user_id,token_hash,expires_at) values($1,$2,$3,$4,now()+interval '30 minutes')",[id,tenant(),user.id,sha(raw)]);
-   const callback=process.env.PASSWORD_RESET_WEBHOOK_URL;if(callback)fetch(callback,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({tenantId:tenant(),email,resetToken:raw,expiresIn:1800})}).catch(()=>{});
-   if(process.env.NODE_ENV!=="production"&&!callback)return c.json({accepted:true,developmentResetToken:raw});
+   const callback=process.env.PASSWORD_RESET_WEBHOOK_URL,adminOrigin=process.env.TALENT_ADMIN_URL||rpOrigin(),resetUrl=adminOrigin.replace(/\/$/,"")+"/login/reset?token="+encodeURIComponent(raw),hookSecret=cfg("PASSWORD_RESET_WEBHOOK_SECRET"),hookHeaders:Record<string,string>={"content-type":"application/json"};if(hookSecret)hookHeaders.authorization="Bearer "+hookSecret;if(callback)fetch(callback,{method:"POST",headers:hookHeaders,body:JSON.stringify({tenantId:tenant(),email,resetToken:raw,resetUrl,expiresIn:1800})}).catch(()=>{});
+   if(process.env.NODE_ENV!=="production"&&!callback)return c.json({accepted:true,developmentResetToken:raw,resetUrl});
  }
  return c.json({accepted:true});
 });
