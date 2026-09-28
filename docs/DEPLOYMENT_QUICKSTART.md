@@ -22,12 +22,9 @@ The deployment workflow temporarily opens SSH only to the current GitHub runner 
 ## GitHub environment: staging
 
 Secrets:
-- `DEPLOY_HOST`
-- `DEPLOY_USER`
 - `DEPLOY_SSH_KEY`
 - `RUNTIME_ENV_FILE`
 - `DIGITALOCEAN_TOKEN`
-- `DATABASE_ADMIN_URL`
 - `DATABASE_RUNTIME_PASSWORD`
 - `VERCEL_TOKEN`
 - `CAREERS_ROUTING_SECRET`
@@ -59,15 +56,14 @@ The state backend must already exist. Cloudflare R2 is suitable for the S3 backe
 ## First production sequence
 
 1. Create the remote state bucket and credentials.
-2. Configure GitHub staging/production environment secrets.
+2. Configure GitHub staging/production environment secrets. Runtime host, NATS and database addresses are discovered automatically.
 3. Run Infrastructure with staging + apply.
 4. Fill staging `RUNTIME_ENV_FILE`, deploy Release, and pass smoke/DAST.
 5. Run Infrastructure with production + apply.
 6. Run the **Production Database** workflow for production; it creates every service database, applies migrations and grants the runtime role.
-7. Fill production `RUNTIME_ENV_FILE` using `infrastructure/production/runtime.env.example`.
-8. Point Cloudflare `api.talent.theraeburngroup.com` to the runtime origin and keep it proxied.
-9. Run **Release** for production.
-10. Run **Frontends** for production; it creates/updates the two Vercel projects and aliases `talent.theraeburngroup.com` / `careers.theraeburngroup.com`.
+7. Fill production `RUNTIME_ENV_FILE` using `infrastructure/production/runtime.env.example`; do not include database/NATS host values because Release injects them automatically.
+8. Run **Release** for production. Terraform already creates the API, Talent Admin and Careers DNS records.
+9. Run **Frontends** for production; it creates/updates the two Vercel projects and aliases `talent.theraeburngroup.com` / `careers.theraeburngroup.com`.
 11. Create the first normal platform administrator, verify MFA, then disable bootstrap.
 12. Run parity/migration checks before retiring the root ATS.
 
