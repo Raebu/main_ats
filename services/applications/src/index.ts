@@ -67,7 +67,7 @@ app.get("/v1/applications/portal/session",async c=>{
  if(!session)return c.json({code:"UNAUTHENTICATED",message:"Candidate session expired or invalid"},401);
  const application=(await pool.query("select * from applications where tenant_id=$1 and id=$2",[session.tenant_id,session.application_id])).rows[0];
  if(!application)return c.json({code:"NOT_FOUND",message:"Application not found"},404);
- const headers=serviceAuthHeaders({"x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID()});
+ const headers=serviceAuthHeaders({"x-tenant-id":session.tenant_id,"x-correlation-id":randomUUID(),"x-organisation-ids":"*"});
  const[jobRes,workflowRes,interviewRes,assessmentRes,offerRes,candidateRes]=await Promise.all([
    fetch(JOBS+"/v1/jobs/"+application.job_id,{headers}),
    fetch(WORKFLOW+"/v1/workflow/"+application.id,{headers}),
