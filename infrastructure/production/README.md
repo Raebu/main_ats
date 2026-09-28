@@ -69,3 +69,22 @@ Do not enable `DOCUMENT_SCAN_MODE=development-bypass` in production.
 ## Rollout guardrails
 
 Keep job-board connectors fail-closed. A destination must never be reported as live unless its adapter has confirmed publication. Keep candidate documents private and unavailable until they reach `PROCESSED`. Keep the transitional root application available during migration until production traffic has been validated against the separated apps and services.
+
+
+## Stage 12 deployment units
+
+Production no longer treats every logical service as a separately released artifact. `infrastructure/production/deployment-units.json` groups the logical services into operationally sensible units. The release workflow builds one immutable `Dockerfile.unit` image and runs it with `UNIT_NAME` to select the required unit; the exact same digest is promoted from staging to production.
+
+The malware scanner is intentionally a separate image built from `Dockerfile.malware-scanner`. It includes ClamAV and current signatures at image build time. Production must refresh/rebuild the scanner image as part of normal security patching and must never set `DOCUMENT_SCAN_MODE=development-bypass`.
+
+## Customer-domain routing
+
+Careers Web signs its request host with `CAREERS_ROUTING_SECRET`. The API gateway validates the signature before resolving a verified custom domain to a tenant. An arbitrary public `x-tenant-id` header is not trusted. Use the same routing secret in Careers Web and API Gateway and rotate it as a production secret.
+
+## Commercial enforcement
+
+Set `ENFORCE_TENANT_ENTITLEMENTS=true` only after the internal Raeburn tenant and all live customer tenants have ACTIVE commercial access records. The gateway then fails closed when tenant commercial access cannot be verified. API requests are metered into the platform service.
+
+## Live activation gate
+
+Repository readiness is checked by `npm run stage12:readiness-gate`. Live production completion additionally requires an external production evidence file and removal of the transitional root ATS; run `npm run stage12:completion-gate` only during the final cutover.
