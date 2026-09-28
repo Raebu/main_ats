@@ -165,12 +165,12 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - name: Start browser-test dependencies
-        run: docker compose -f infrastructure/docker-compose.yml up -d postgres pgbouncer nats s3test
+        run: docker compose -f infrastructure/docker-compose.yml up -d postgres pgbouncer nats minio
       - name: Initialise private object storage
         env:
-          R2_ENDPOINT: http://127.0.0.1:4566
-          R2_ACCESS_KEY_ID: test
-          R2_SECRET_ACCESS_KEY: test
+          R2_ENDPOINT: http://127.0.0.1:9000
+          R2_ACCESS_KEY_ID: minioadmin
+          R2_SECRET_ACCESS_KEY: minioadmin
           R2_BUCKET: raeburn-talent
           R2_FORCE_PATH_STYLE: "true"
         run: npm run object-storage:init
@@ -178,7 +178,7 @@ jobs:
         run: npm run platform:bootstrap
       - name: Start backend platform
         run: |
-          nohup env SKIP_FRONTENDS=true BOOTSTRAP_ADMIN_EMAIL=careers@theraeburngroup.com BOOTSTRAP_ADMIN_PASSWORD=change-me-local R2_ENDPOINT=http://127.0.0.1:4566 R2_ACCESS_KEY_ID=test R2_SECRET_ACCESS_KEY=test R2_BUCKET=raeburn-talent R2_FORCE_PATH_STYLE=true npm run platform:dev >/tmp/raeburn-browser-platform.log 2>&1 &
+          nohup env SKIP_FRONTENDS=true BOOTSTRAP_ADMIN_EMAIL=careers@theraeburngroup.com BOOTSTRAP_ADMIN_PASSWORD=change-me-local R2_ENDPOINT=http://127.0.0.1:9000 R2_ACCESS_KEY_ID=minioadmin R2_SECRET_ACCESS_KEY=minioadmin R2_BUCKET=raeburn-talent R2_FORCE_PATH_STYLE=true npm run platform:dev >/tmp/raeburn-browser-platform.log 2>&1 &
           echo $! >/tmp/raeburn-browser-platform.pid
       - name: Wait for API Gateway
         shell: bash
