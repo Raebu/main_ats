@@ -164,7 +164,9 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - name: Start browser-test dependencies
-        run: docker compose -f infrastructure/docker-compose.yml up -d postgres pgbouncer nats minio minio-init
+        run: docker compose -f infrastructure/docker-compose.yml up -d postgres pgbouncer nats minio
+      - name: Initialise private object storage
+        run: npm run object-storage:init
       - name: Bootstrap service databases
         run: npm run platform:bootstrap
       - name: Start backend platform
