@@ -43,6 +43,7 @@ jobs:
       - run: npm run stage9:validate
       - run: npm run stage10:completion-gate
       - run: npm run stage11:completion-gate
+      - run: npm run stage12:readiness-gate
       - run: npm run test:contracts
       - run: npm run typecheck
       - run: npm run test:unit
