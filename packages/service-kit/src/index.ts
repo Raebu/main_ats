@@ -129,10 +129,7 @@ export function context(headers:Headers){
     tenantId:headers.get("x-tenant-id")||process.env.DEFAULT_TENANT_ID||"tenant_raeburn_group"
   };
 }
-export async function health(service:string){
-  await pool.query("select 1");
-  return {service,status:"healthy",time:new Date().toISOString()};
-}
+export async function health(service:string){return {service,status:"alive",time:new Date().toISOString()};}
 export async function withTransaction<T>(fn:(client:pg.PoolClient)=>Promise<T>){
   const client=await pool.connect();
   try{await client.query("begin");const result=await fn(client);await client.query("commit");return result;}
@@ -312,4 +309,35 @@ export function minimiseEventPayload(payload:unknown){
   const source=payload as Record<string,unknown>,out:Record<string,unknown>={};
   for(const[k,v]of Object.entries(source))if(allow.has(k))out[k]=v;
   return out;
+}
+
+
+type CircuitState={failures:number;openUntil:number;halfOpen:boolean};
+const circuits=new Map<string,CircuitState>();
+export async function withCircuitBreaker<T>(name:string,fn:()=>Promise<T>,options:{failureThreshold?:number;cooldownMs?:number}={}){
+  const threshold=options.failureThreshold||5,cooldown=options.cooldownMs||30000,now=Date.now(),state=circuits.get(name)||{failures:0,openUntil:0,halfOpen:false};
+  if(state.openUntil>now){metricInc("raeburn_circuit_open_rejections_total",{circuit:name});throw new Error("CIRCUIT_OPEN:"+name);}
+  if(state.openUntil&&state.openUntil<=now){state.halfOpen=true;state.openUntil=0;}
+  try{const result=await fn();circuits.set(name,{failures:0,openUntil:0,halfOpen:false});return result;}
+  catch(error){const failures=state.failures+1,openUntil=failures>=threshold?Date.now()+cooldown:0;circuits.set(name,{failures,openUntil,halfOpen:false});metricInc("raeburn_circuit_failures_total",{circuit:name});if(openUntil)metricInc("raeburn_circuit_open_total",{circuit:name});throw error;}
+}
+export async function resilientFetch(url:string|URL,init:RequestInit={},options:{attempts?:number;timeoutMs?:number;circuit?:string;idempotent?:boolean}={}){
+  const target=typeof url==="string"?url:url.toString(),method=String(init.method||"GET").toUpperCase(),safe=["GET","HEAD","OPTIONS"].includes(method)||options.idempotent===true;
+  const host=(()=>{try{return new URL(target).host;}catch{return"unknown";}})(),circuit=options.circuit||"http:"+host;
+  return withCircuitBreaker(circuit,()=>withRetry(async()=>{
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),options.timeoutMs||10000);
+    try{
+      const response=await fetch(target,{...init,signal:init.signal||controller.signal});
+      if(response.status===429||response.status>=500){if(safe)throw new Error("upstream "+response.status+" from "+host);}
+      return response;
+    }finally{clearTimeout(timer);}
+  },{attempts:safe?(options.attempts||3):1,baseMs:250,maxMs:5000}));
+}
+export async function withWorkerLease<T>(name:string,fn:()=>Promise<T>){
+  const client=await pool.connect(),key=SERVICE+":"+name;
+  try{
+    const locked=(await client.query("select pg_try_advisory_lock(hashtext($1)::bigint) locked",[key])).rows[0]?.locked===true;
+    if(!locked){metricInc("raeburn_worker_lease_contention_total",{worker:name});return undefined;}
+    try{return await fn();}finally{await client.query("select pg_advisory_unlock(hashtext($1)::bigint)",[key]);}
+  }finally{client.release();}
 }
