@@ -45,7 +45,7 @@ app.post("/v1/applications",async c=>{
    const{rows}=await client.query("insert into applications(id,tenant_id,job_id,candidate_id,organisation_id,right_to_work,availability,cover_note,privacy_notice_version,privacy_accepted_at,attribution,answers) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb) returning *",[id,x.tenantId,body.jobId,candidate.id,job.hiringOrganisationId||job.operatingOrganisationId||null,body.rightToWork||null,body.availability||null,body.coverNote||null,body.privacyNoticeVersion,body.privacyAcceptedAt,JSON.stringify(body.attribution),JSON.stringify(body.answers)]);
    await client.query("insert into candidate_portal_sessions(id,tenant_id,application_id,candidate_id,token_hash,expires_at) values($1,$2,$3,$4,$5,now()+interval '30 days')",[sessionId,x.tenantId,id,candidate.id,tokenHash(portalToken)]);
    const value=map(rows[0]);
-   await writeOutbox(client,createEvent({eventType:Events.applicationCreated,eventVersion:1,producer:"applications",correlationId:x.correlationId,tenantId:x.tenantId,payload:{...value,candidate,job}}));
+   await writeOutbox(client,createEvent({eventType:Events.applicationCreated,eventVersion:1,producer:"applications",correlationId:x.correlationId,tenantId:x.tenantId,payload:{id:value.id,jobId:value.jobId,candidateId:value.candidateId,organisationId:value.organisationId,status:value.status||"APPLIED"}}));
    return value;
  });
  fetch(ATTRIBUTION+"/v1/attribution/conversions",{method:"POST",headers,body:JSON.stringify({applicationId:id,jobId:body.jobId,candidateId:candidate.id,...body.attribution})}).catch(()=>{});
