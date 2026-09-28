@@ -1,5 +1,6 @@
 const API=(process.env.TALENT_API_URL||"http://127.0.0.1:4100").replace(/\/$/,"");
-const JOBS=(process.env.JOBS_URL||"http://127.0.0.1:4101").replace(/\/$/,"");\nconst DISTRIBUTION=(process.env.DISTRIBUTION_URL||"http://127.0.0.1:4108").replace(/\/$/,"");
+const JOBS=(process.env.JOBS_URL||"http://127.0.0.1:4101").replace(/\/$/,"");
+const DISTRIBUTION=(process.env.DISTRIBUTION_URL||"http://127.0.0.1:4108").replace(/\/$/,"");
 const tenant="tenant_raeburn_group";
 
 async function call(base,path,init={}){
