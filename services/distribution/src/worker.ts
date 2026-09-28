@@ -1,7 +1,7 @@
 import{randomUUID}from"node:crypto";
 import type{DomainEvent}from"@raeburn/events";
 import type{ConnectorJob,JobBoardConnector}from"@raeburn/connectors";
-import{consumeDurable,pool}from"@raeburn/service-kit";
+import{consumeDurable,metricInc,pool,withWorkerLease}from"@raeburn/service-kit";
 import{indeedConnector}from"@raeburn/connector-indeed";
 import{linkedinConnector}from"@raeburn/connector-linkedin";
 import{adzunaConnector}from"@raeburn/connector-adzuna";
@@ -32,6 +32,7 @@ function jobFrom(payload:any,destination:string,copy:any={}):ConnectorJob{
 async function recordAttempt(pub:any,action:"publish"|"update"|"close",result:any,error?:string){
  const id=randomUUID(),attemptNo=Number(pub.attempt_count||0)+1;
  await pool.query("insert into publication_attempts(id,tenant_id,publication_id,job_id,destination,action,status,attempt_no,response,error,completed_at) values($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,now())",[id,pub.tenant_id,pub.id,pub.job_id,pub.destination,action,result?.status||"failed",attemptNo,JSON.stringify(result?.receipt||{}),error||result?.message||null]);
+ metricInc("raeburn_publication_attempt_total",{destination:pub.destination,status:String(result?.status||"failed")});
  return attemptNo;
 }
 async function execute(pub:any,action:"publish"|"update"|"close"){
@@ -50,7 +51,7 @@ async function execute(pub:any,action:"publish"|"update"|"close"){
   await pool.query("update publications set status='NOT_CONFIGURED',attempt_count=$2,last_attempt_at=now(),last_error=$3,next_attempt_at=null,updated_at=now() where id=$1",[pub.id,attemptNo,result.message||"Provider is not configured"]);return;
  }
  const cfg=pub.provider_config||{},max=Number(cfg.maxAttempts||5),base=Number(cfg.baseRetrySeconds||60),message=result.message||"Provider publication failed";
- if(attemptNo>=max){await pool.query("update publications set status='DLQ',attempt_count=$2,last_attempt_at=now(),last_error=$3,rejection_reason=$3,next_attempt_at=null,updated_at=now() where id=$1",[pub.id,attemptNo,message]);await pool.query("insert into publication_dlq(id,tenant_id,publication_id,job_id,destination,payload,reason,attempts) values($1,$2,$3,$4,$5,$6::jsonb,$7,$8)",[randomUUID(),pub.tenant_id,pub.id,pub.job_id,pub.destination,JSON.stringify(pub.job_snapshot||{}),message,attemptNo]);}
+ if(attemptNo>=max){metricInc("raeburn_publication_dlq_total",{destination:pub.destination});await pool.query("update publications set status='DLQ',attempt_count=$2,last_attempt_at=now(),last_error=$3,rejection_reason=$3,next_attempt_at=null,updated_at=now() where id=$1",[pub.id,attemptNo,message]);await pool.query("insert into publication_dlq(id,tenant_id,publication_id,job_id,destination,payload,reason,attempts) values($1,$2,$3,$4,$5,$6::jsonb,$7,$8)",[randomUUID(),pub.tenant_id,pub.id,pub.job_id,pub.destination,JSON.stringify(pub.job_snapshot||{}),message,attemptNo]);}
  else{const delay=wait(base*Math.pow(2,attemptNo-1));await pool.query("update publications set status='RETRYING',attempt_count=$2,last_attempt_at=now(),last_error=$3,rejection_reason=$3,next_attempt_at=now()+($4||' seconds')::interval,updated_at=now() where id=$1",[pub.id,attemptNo,message,String(delay)]);}
 }
 async function upsert(tenantId:string,job:any,destination:string,action:"publish"|"update"|"close"){
@@ -61,5 +62,5 @@ async function upsert(tenantId:string,job:any,destination:string,action:"publish
 }
 async function consume(subject:string){await consumeDurable(subject,"distribution-"+subject,async(e:DomainEvent)=>{if((await pool.query("select 1 from processed_events where event_id=$1",[e.eventId])).rowCount)return;const job:any=e.payload,action=subject==="job.closed.v1"?"close":subject==="job.updated.v1"?"update":"publish";const enabled=(await pool.query("select provider from provider_settings where tenant_id=$1 and enabled=true",[e.tenantId])).rows.map((r:any)=>r.provider);const destinations=action==="close"?(await pool.query("select destination from publications where tenant_id=$1 and job_id=$2",[e.tenantId,job.id])).rows.map((r:any)=>r.destination):["raeburn-mainstream",...(job.audiences||[]).map((a:string)=>"gateway:"+a.toLowerCase()),"google-jobs","json-feed","xml-feed","csv-feed",...enabled];for(const dest of[...new Set(destinations)])await upsert(e.tenantId,job,String(dest),action);await pool.query("insert into processed_events(event_id) values($1) on conflict do nothing",[e.eventId]);});}
 async function retryDue(){const{rows}=await pool.query("select * from publications where status='RETRYING' and next_attempt_at<=now() order by next_attempt_at limit 50 for update skip locked");for(const pub of rows)await execute(pub,"publish");}
-setInterval(()=>retryDue().catch(console.error),30000);
+const retryRun=()=>withWorkerLease("distribution-retries",retryDue).catch(console.error);setInterval(retryRun,30000);void retryRun();
 void consume("job.published.v1");void consume("job.updated.v1");void consume("job.closed.v1");
