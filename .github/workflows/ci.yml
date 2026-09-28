@@ -165,7 +165,18 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - name: Start browser-test dependencies
-        run: docker compose -f infrastructure/docker-compose.yml up -d postgres pgbouncer nats\n          nohup node scripts/s3-test-server.mjs >/tmp/raeburn-s3-test.log 2>&1 &\n          echo $! >/tmp/raeburn-s3-test.pid
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f infrastructure/docker-compose.yml up -d postgres pgbouncer nats
+          nohup node scripts/s3-test-server.mjs >/tmp/raeburn-s3-test.log 2>&1 &
+          echo $! >/tmp/raeburn-s3-test.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4566/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/raeburn-s3-test.log || true
+          exit 1
       - name: Initialise private object storage
         env:
           R2_ENDPOINT: http://127.0.0.1:4566
@@ -220,10 +231,12 @@ jobs:
         if: failure()
         run: |
           cat /tmp/raeburn-browser-platform.log || true
+          cat /tmp/raeburn-s3-test.log || true
           cat /tmp/careers.log || true
           cat /tmp/admin.log || true
       - name: Browser test cleanup
         if: always()
         run: |
           test ! -f /tmp/raeburn-browser-platform.pid || kill $(cat /tmp/raeburn-browser-platform.pid) || true
+          test ! -f /tmp/raeburn-s3-test.pid || kill $(cat /tmp/raeburn-s3-test.pid) || true
           docker compose -f infrastructure/docker-compose.yml down -v
