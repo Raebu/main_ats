@@ -1,5 +1,5 @@
 const API=(process.env.TALENT_API_URL||"http://127.0.0.1:4100").replace(/\/$/,"");
-const JOBS=(process.env.JOBS_URL||"http://127.0.0.1:4101").replace(/\/$/,"");
+const JOBS=(process.env.JOBS_URL||"http://127.0.0.1:4101").replace(/\/$/,"");\nconst DISTRIBUTION=(process.env.DISTRIBUTION_URL||"http://127.0.0.1:4108").replace(/\/$/,"");
 const tenant="tenant_raeburn_group";
 
 async function call(base,path,init={}){
@@ -23,6 +23,20 @@ const published=await call(API,"/v1/jobs/public",{method:"GET",headers:{}});
 const jobs=Array.isArray(published)?published:(published.jobs||[]);
 if(!jobs.some(j=>j.id===job.id))throw new Error("published vacancy missing from public API");
 
+let publications=[];
+for(let attempt=0;attempt<40;attempt++){
+  publications=await call(DISTRIBUTION,"/v1/distribution/jobs/"+job.id,{method:"GET",headers:{}});
+  if(publications.some(p=>p.destination==="raeburn-mainstream"&&p.status==="LIVE"))break;
+  await new Promise(resolve=>setTimeout(resolve,250));
+}
+if(!publications.some(p=>p.destination==="raeburn-mainstream"&&p.status==="LIVE"))throw new Error("distribution worker did not publish the first-party vacancy");
+for(const destination of["google-jobs","json-feed","xml-feed","csv-feed"]){
+  if(!publications.some(p=>p.destination===destination&&p.status==="LIVE"))throw new Error("missing live built-in distribution: "+destination);
+}
+const jsonFeed=await call(DISTRIBUTION,"/v1/distribution/feeds/json",{method:"GET",headers:{}});
+if(!(Array.isArray(jsonFeed)?jsonFeed:[]).some(j=>j.id===job.id))throw new Error("JSON distribution feed missing published vacancy");
+
+
 const application=await call(API,"/v1/applications",{method:"POST",body:JSON.stringify({
   tenantId:tenant,jobId:job.id,candidate:{name:"Stage Ten Synthetic",email:"stage10+"+stamp+"@example.invalid"},
   answers:[],privacyNoticeVersion:"ci-stage10",privacyAcceptedAt:new Date().toISOString(),
@@ -45,5 +59,6 @@ if(!privacy.id||privacy.identityVerified!==true)throw new Error("portal DSAR was
 await call(JOBS,"/v1/jobs/"+job.id+"/close",{method:"POST",headers:{"x-organisation-ids":"*"},body:"{}"});
 console.log(JSON.stringify({
   ok:true,jobId:job.id,applicationId:application.id,candidateId:application.candidateId,
-  privacyRequestId:privacy.id
+  privacyRequestId:privacy.id,
+  distributionDestinations:publications.map(p=>({destination:p.destination,status:p.status}))
 }));
