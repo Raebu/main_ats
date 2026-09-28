@@ -1,0 +1,32 @@
+name: DAST
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: HTTPS staging URL
+        required: true
+        type: string
+  schedule:
+    - cron: "31 4 * * 2"
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    if: github.event_name == 'workflow_dispatch' || vars.STAGING_BASE_URL != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve target
+        id: target
+        shell: bash
+        env:
+          INPUT_TARGET: ${{ inputs.target }}
+          DEFAULT_TARGET: ${{ vars.STAGING_BASE_URL }}
+        run: echo "url=${INPUT_TARGET:-$DEFAULT_TARGET}" >> "$GITHUB_OUTPUT"
+      - uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: ${{ steps.target.outputs.url }}
+          fail_action: true
+          allow_issue_writing: false
