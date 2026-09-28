@@ -60,10 +60,12 @@ export async function ensureEventInfrastructure(){
 }
 export async function publish(event:DomainEvent){
   const valid=validateDomainEvent(event);
+  const sensitive=/^(candidate|application|document|communication|interview|assessment|offer|onboarding)\./.test(valid.eventType);
+  const transport=sensitive&&process.env.EVENT_PII_MINIMIZATION!=="false"?{...valid,payload:minimiseEventPayload(valid.payload)}:valid;
   await ensureEventInfrastructure();
   const client=await jetStream();
-  await client.publish(valid.eventType,codec.encode(valid),{msgID:valid.eventId});
-  metricInc("raeburn_events_published_total",{event_type:valid.eventType});
+  await client.publish(transport.eventType,codec.encode(transport),{msgID:transport.eventId});
+  metricInc("raeburn_events_published_total",{event_type:transport.eventType});
 }
 function durableName(value:string){return value.replace(/[^a-zA-Z0-9_-]/g,"_").slice(0,120);}
 function safeError(error:unknown){const raw=error instanceof Error?error.message:String(error);return raw.replace(/[\r\n\t]/g," ").slice(0,1000);}
@@ -178,7 +180,8 @@ export async function flushOutbox(limit=100){
 }
 
 export function log(level:"debug"|"info"|"warn"|"error",message:string,fields:Record<string,unknown>={}){
-  const record={timestamp:new Date().toISOString(),level,service:process.env.SERVICE_NAME||"raeburn-service",message,...fields};
+  const safeFields=redact(fields);
+  const record={timestamp:new Date().toISOString(),level,service:process.env.SERVICE_NAME||"raeburn-service",message,...safeFields};
   const line=JSON.stringify(record);
   if(level==="error")console.error(line);else if(level==="warn")console.warn(line);else console.log(line);
   const loki=process.env.LOKI_PUSH_URL;
@@ -248,16 +251,38 @@ export function observeHttp(service:string){
     }
   };
 }
+export async function eventConsumerStats(){
+  try{
+    await ensureEventInfrastructure();
+    const manager=await jetStreamManager(),lister:any=manager.consumers.list(EVENT_STREAM),infos:any[]=await lister.next();
+    return infos.map((info:any)=>({
+      name:String(info.name||info.config?.durable_name||"unknown"),
+      pending:Number(info.num_pending||0),
+      ackPending:Number(info.num_ack_pending||0),
+      redelivered:Number(info.num_redelivered||0),
+      delivered:Number(info.delivered?.consumer_seq||0),
+      ackFloor:Number(info.ack_floor?.consumer_seq||0)
+    })).sort((a:any,b:any)=>a.name.localeCompare(b.name));
+  }catch{return[] as Array<{name:string;pending:number;ackPending:number;redelivered:number;delivered:number;ackFloor:number}>;}
+}
 export async function metricsText(service=SERVICE){
   let dbLatency=-1,outbox=-1;
   try{const started=Date.now();await pool.query("select 1");dbLatency=Date.now()-started;}catch{}
   try{outbox=Number((await pool.query("select count(*)::int n from outbox_events where published_at is null")).rows[0]?.n||0);}catch{}
+  const consumers=await eventConsumerStats();
   const lines=[
     "# TYPE raeburn_service_up gauge",`raeburn_service_up{service="${service}"} 1`,
     "# TYPE raeburn_database_latency_ms gauge",`raeburn_database_latency_ms{service="${service}"} ${dbLatency}`,
     "# TYPE raeburn_outbox_backlog gauge",`raeburn_outbox_backlog{service="${service}"} ${outbox}`,
     "# TYPE raeburn_process_uptime_seconds gauge",`raeburn_process_uptime_seconds{service="${service}"} ${Math.floor(process.uptime())}`
   ];
+  lines.push("# TYPE raeburn_event_consumer_pending gauge","# TYPE raeburn_event_consumer_ack_pending gauge","# TYPE raeburn_event_consumer_redelivered gauge");
+  for(const consumer of consumers){
+    const label=consumer.name.replace(/["\\\n]/g,"_");
+    lines.push(`raeburn_event_consumer_pending{service="${service}",consumer="${label}"} ${consumer.pending}`);
+    lines.push(`raeburn_event_consumer_ack_pending{service="${service}",consumer="${label}"} ${consumer.ackPending}`);
+    lines.push(`raeburn_event_consumer_redelivered{service="${service}",consumer="${label}"} ${consumer.redelivered}`);
+  }
   for(const[k,v]of metricCounters)lines.push(k+" "+v);
   for(const[k,v]of metricDurations){lines.push(k+"_count "+v.count);lines.push(k+"_sum "+v.sum);}
   return lines.join("\n")+"\n";
@@ -279,8 +304,8 @@ export async function startTelemetry(){
   }catch(error){telemetryStarted=false;log("warn","OpenTelemetry initialisation failed",{error:safeError(error)});}
 }
 export async function eventPlatformStatus(){
-  await ensureEventInfrastructure();const manager=await jetStreamManager(),info=await manager.streams.info(EVENT_STREAM);
-  return{stream:EVENT_STREAM,messages:info.state.messages,bytes:info.state.bytes,firstSeq:info.state.first_seq,lastSeq:info.state.last_seq,consumerCount:info.state.consumer_count};
+  await ensureEventInfrastructure();const manager=await jetStreamManager(),info=await manager.streams.info(EVENT_STREAM),consumers=await eventConsumerStats();
+  return{stream:EVENT_STREAM,messages:info.state.messages,bytes:info.state.bytes,firstSeq:info.state.first_seq,lastSeq:info.state.last_seq,consumerCount:info.state.consumer_count,totalPending:consumers.reduce((n,c)=>n+c.pending,0),totalAckPending:consumers.reduce((n,c)=>n+c.ackPending,0),consumers};
 }
 let shuttingDown=false;
 export function installGracefulShutdown(service=SERVICE){
