@@ -25,10 +25,17 @@ Only the API Gateway should be internet-facing. Domain service ports should rema
 
 At minimum:
 
-- `AUTH_SECRET`
+- `AUTH_SECRET` (transitional/fallback only; production access tokens use RS256)
+- `AUTH_PRIVATE_KEY_PEM` and `AUTH_PUBLIC_KEY_PEM`, with `AUTH_KEY_ID`; keep previous verification keys in `AUTH_PUBLIC_KEYS_JSON` during key rotation
+- `MFA_ENCRYPTION_KEY`
+- `TENANT_ENCRYPTION_MASTER_KEY`
+- `SERVICE_AUTH_SECRET` with `REQUIRE_SERVICE_AUTH=true`
+- `WEBAUTHN_RP_ID` and `WEBAUTHN_ORIGIN`
+- `TALENT_ADMIN_URL`
+- `PASSWORD_RESET_WEBHOOK_URL` and `PASSWORD_RESET_WEBHOOK_SECRET` when reset delivery is enabled
 - `APPLICATION_UPLOAD_SECRET`
 - `BOOTSTRAP_ADMIN_EMAIL`
-- `BOOTSTRAP_ADMIN_PASSWORD` (remove/rotate after a real platform administrator is created)
+- `BOOTSTRAP_ADMIN_PASSWORD` only for initial provisioning; permanently disable bootstrap after a real platform administrator is created
 - per-service `DATABASE_URL`
 - `NATS_URL`
 - `R2_ENDPOINT`
@@ -37,6 +44,12 @@ At minimum:
 - `R2_BUCKET`
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
 - `MALWARE_SCANNER_URL` and scanner credentials when used
+
+Sensitive values support either the direct variable or a same-name `_FILE` variable pointing at a mounted secret-manager file where the consuming component uses the shared secret loader. Do not commit private keys, client secrets, service-auth secrets, encryption keys or password-reset webhook secrets.
+
+### SSO provider configuration
+
+Configure `google` and/or `microsoft` in Identity Service `identity_providers` with an explicit OIDC issuer, client ID, callback URI, allowed domains and the environment-variable name holding the client secret. Keep `allowAutoProvision` disabled unless automatic account creation is an intentional policy; otherwise provision Talent users and organisation memberships before SSO login.
 
 Do not enable `DOCUMENT_SCAN_MODE=development-bypass` in production.
 
