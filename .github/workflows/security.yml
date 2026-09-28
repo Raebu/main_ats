@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: aquasecurity/trivy-action@0.36.0
+      - uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: aquasecurity/trivy-action@0.36.0
+      - uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: config
           scan-ref: infrastructure/terraform
@@ -60,7 +60,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build representative production image
         run: docker build -f infrastructure/production/Dockerfile.workspace --build-arg WORKSPACE=@raeburn/api-gateway -t raeburn-talent-gateway:ci .
-      - uses: aquasecurity/trivy-action@0.36.0
+      - uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: raeburn-talent-gateway:ci
           severity: HIGH,CRITICAL
