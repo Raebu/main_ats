@@ -1,0 +1,78 @@
+name: Frontends
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Frontend environment
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    environment: ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+      TALENT_API_URL: ${{ vars.BASE_URL }}
+      ADMIN_PROJECT: ${{ vars.ADMIN_VERCEL_PROJECT }}
+      CAREERS_PROJECT: ${{ vars.CAREERS_VERCEL_PROJECT }}
+      ADMIN_DOMAIN: ${{ vars.ADMIN_DOMAIN }}
+      CAREERS_DOMAIN: ${{ vars.CAREERS_DOMAIN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate frontend deployment configuration
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          CAREERS_ROUTING_SECRET: ${{ secrets.CAREERS_ROUTING_SECRET }}
+        run: |
+          set -euo pipefail
+          for v in VERCEL_TOKEN CAREERS_ROUTING_SECRET VERCEL_TEAM_ID TALENT_API_URL ADMIN_PROJECT CAREERS_PROJECT ADMIN_DOMAIN CAREERS_DOMAIN; do
+            test -n "${!v:-}" || { echo "Missing $v"; exit 1; }
+          done
+      - name: Ensure Vercel projects
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          ensure_project() {
+            name="$1"; root="$2"
+            code=$(curl -sS -o /tmp/project.json -w '%{http_code}'               -H "Authorization: Bearer $VERCEL_TOKEN"               "https://api.vercel.com/v9/projects/$name?teamId=$VERCEL_TEAM_ID")
+            if [ "$code" = "404" ]; then
+              curl -fsS -X POST "https://api.vercel.com/v9/projects?teamId=$VERCEL_TEAM_ID"                 -H "Authorization: Bearer $VERCEL_TOKEN" -H 'Content-Type: application/json'                 --data "{"name":"$name","framework":"nextjs","rootDirectory":"$root"}" > /tmp/project.json
+            elif [ "$code" != "200" ]; then
+              cat /tmp/project.json; exit 1
+            else
+              curl -fsS -X PATCH "https://api.vercel.com/v9/projects/$name?teamId=$VERCEL_TEAM_ID"                 -H "Authorization: Bearer $VERCEL_TOKEN" -H 'Content-Type: application/json'                 --data "{"framework":"nextjs","rootDirectory":"$root"}" > /tmp/project.json
+            fi
+          }
+          ensure_project "$ADMIN_PROJECT" "apps/talent-admin"
+          ensure_project "$CAREERS_PROJECT" "apps/careers-web"
+      - name: Link and deploy Talent Admin
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          project_id=$(curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v9/projects/$ADMIN_PROJECT?teamId=$VERCEL_TEAM_ID" | jq -r .id)
+          mkdir -p apps/talent-admin/.vercel
+          printf '{"orgId":"%s","projectId":"%s"}' "$VERCEL_TEAM_ID" "$project_id" > apps/talent-admin/.vercel/project.json
+          url=$(npx --yes vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN" --scope "$VERCEL_TEAM_ID" --cwd apps/talent-admin             --env "TALENT_API_URL=$TALENT_API_URL" --build-env "TALENT_API_URL=$TALENT_API_URL" | tail -n1)
+          npx --yes vercel@latest alias set "$url" "$ADMIN_DOMAIN" --token "$VERCEL_TOKEN" --scope "$VERCEL_TEAM_ID"
+      - name: Link and deploy Careers
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          CAREERS_ROUTING_SECRET: ${{ secrets.CAREERS_ROUTING_SECRET }}
+        run: |
+          set -euo pipefail
+          project_id=$(curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v9/projects/$CAREERS_PROJECT?teamId=$VERCEL_TEAM_ID" | jq -r .id)
+          mkdir -p apps/careers-web/.vercel
+          printf '{"orgId":"%s","projectId":"%s"}' "$VERCEL_TEAM_ID" "$project_id" > apps/careers-web/.vercel/project.json
+          url=$(npx --yes vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN" --scope "$VERCEL_TEAM_ID" --cwd apps/careers-web             --env "TALENT_API_URL=$TALENT_API_URL" --env "TALENT_TENANT_ID=tenant_raeburn_group"             --env "CAREERS_BASE_URL=https://$CAREERS_DOMAIN" --env "CAREERS_ROUTING_SECRET=$CAREERS_ROUTING_SECRET"             --build-env "TALENT_API_URL=$TALENT_API_URL" --build-env "CAREERS_BASE_URL=https://$CAREERS_DOMAIN" | tail -n1)
+          npx --yes vercel@latest alias set "$url" "$CAREERS_DOMAIN" --token "$VERCEL_TOKEN" --scope "$VERCEL_TEAM_ID"
