@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "units": [
+    {"name":"edge-api","workspaces":["@raeburn/api-gateway"],"public":true,"replicas":{"staging":1,"production":2}},
+    {"name":"recruitment-core","workspaces":["@raeburn/jobs-service","@raeburn/candidates-service","@raeburn/applications-service","@raeburn/workflow-service","@raeburn/organisations-service"],"public":false,"replicas":{"staging":1,"production":2}},
+    {"name":"selection","workspaces":["@raeburn/interviews-service","@raeburn/assessments-service","@raeburn/offers-service","@raeburn/talent-pools-service","@raeburn/onboarding-service"],"public":false,"replicas":{"staging":1,"production":2}},
+    {"name":"experience","workspaces":["@raeburn/communications-service","@raeburn/notifications-service","@raeburn/documents-service","@raeburn/distribution-service","@raeburn/campaigns-service","@raeburn/careers-gateway-service"],"public":false,"replicas":{"staging":1,"production":2}},
+    {"name":"platform-control","workspaces":["@raeburn/identity-service","@raeburn/configuration-service","@raeburn/feature-flags-service","@raeburn/integrations-service","@raeburn/webhooks-service","@raeburn/privacy-service","@raeburn/audit-service","@raeburn/platform-service"],"public":false,"replicas":{"staging":1,"production":2}},
+    {"name":"intelligence-data","workspaces":["@raeburn/analytics-service","@raeburn/search-service","@raeburn/intelligence-service","@raeburn/attribution-service","@raeburn/scheduler-service"],"public":false,"replicas":{"staging":1,"production":2}},
+    {"name":"malware-scanner","workspaces":["@raeburn/malware-scanner"],"public":false,"replicas":{"staging":1,"production":2}}
+  ]
+}
