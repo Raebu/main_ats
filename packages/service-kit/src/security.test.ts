@@ -2,7 +2,7 @@ import{afterEach,describe,expect,it}from"vitest";
 import{mkdtempSync,rmSync,writeFileSync}from"node:fs";
 import{join}from"node:path";
 import{tmpdir}from"node:os";
-import{organisationScope,secretValue,tenantDecrypt,tenantEncrypt}from"./index";
+import{organisationScope,secretValue,serviceAuthHeaders,serviceAuthRequired,tenantDecrypt,tenantEncrypt,verifyServiceAuth}from"./index";
 
 const touched=new Set<string>();
 function env(name:string,value:string){touched.add(name);process.env[name]=value;}
@@ -35,5 +35,20 @@ describe("organisation access scope",()=>{
  it("supports explicit group-wide wildcard access",()=>{
   const scope=organisationScope(new Headers({"x-organisation-ids":"*"}));
   expect(scope.canAccess("org-any")).toBe(true);
+ });
+});
+
+describe("production service authentication",()=>{
+ it("requires signed internal requests by default in production",()=>{
+  env("NODE_ENV","production");env("SERVICE_AUTH_SECRET","service-auth-test-secret");env("SERVICE_NAME","stage8-test");
+  expect(serviceAuthRequired()).toBe(true);
+  const signed=serviceAuthHeaders({"x-tenant-id":"tenant-a","x-correlation-id":"corr-1"}),headers=new Headers(signed);
+  expect(verifyServiceAuth(headers)).toBe(true);
+  headers.set("x-tenant-id","tenant-b");
+  expect(verifyServiceAuth(headers)).toBe(false);
+ });
+ it("rejects unsigned internal requests in production",()=>{
+  env("NODE_ENV","production");env("SERVICE_AUTH_SECRET","service-auth-test-secret");
+  expect(verifyServiceAuth(new Headers({"x-tenant-id":"tenant-a"}))).toBe(false);
  });
 });
