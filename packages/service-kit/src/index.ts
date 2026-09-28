@@ -11,6 +11,11 @@ let js:JetStreamClient|undefined;
 let jsm:JetStreamManager|undefined;
 let eventInfrastructure:Promise<void>|undefined;
 const EVENT_STREAM=process.env.NATS_EVENT_STREAM||"TALENT_EVENTS";
+const EVENT_SUBJECTS=(process.env.NATS_EVENT_SUBJECTS||[
+  "job.>","candidate.>","application.>","workflow.>","interview.>","assessment.>","offer.>",
+  "talent_pool.>","document.>","distribution.>","communication.>","onboarding.>","scheduler.>",
+  "privacy.>","integration.>","notification.>","campaign.>","webhook.>","platform.>"
+].join(",")).split(",").map(x=>x.trim()).filter(Boolean);
 const SERVICE=process.env.SERVICE_NAME||"raeburn-service";
 const metricCounters=new Map<string,number>();
 const metricDurations=new Map<string,{count:number,sum:number}>();
@@ -50,7 +55,7 @@ export async function ensureEventInfrastructure(){
     try{await manager.streams.info(EVENT_STREAM);}
     catch{
       await manager.streams.add({
-        name:EVENT_STREAM,subjects:[">"],retention:RetentionPolicy.Limits,storage:StorageType.File,
+        name:EVENT_STREAM,subjects:EVENT_SUBJECTS,retention:RetentionPolicy.Limits,storage:StorageType.File,
         discard:DiscardPolicy.Old,max_age:Number(process.env.NATS_EVENT_MAX_AGE_NS||2592000000000000),
         duplicate_window:Number(process.env.NATS_DUPLICATE_WINDOW_NS||120000000000)
       });
