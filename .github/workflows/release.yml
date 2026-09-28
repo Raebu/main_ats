@@ -12,7 +12,7 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
   packages: write
   id-token: write
 
@@ -106,3 +106,15 @@ jobs:
         run: node scripts/deploy-release.mjs production
       - if: steps.smoke.outcome == 'failure'
         run: exit 1
+
+  publish-release:
+    needs: [qualify,production]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish immutable release record
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_SHA: ${{ needs.qualify.outputs.sha }}
+          TAG: talent-v0.2.${{ github.run_number }}
+        run: |
+          gh release create "$TAG"             --repo "${{ github.repository }}"             --target "$RELEASE_SHA"             --generate-notes             --title "Raeburn Talent $TAG"
