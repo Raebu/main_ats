@@ -2,9 +2,9 @@ import{createHash,randomUUID}from"node:crypto";
 import{serve}from"@hono/node-server";
 import{Hono}from"hono";
 import{z}from"zod";
-import{context,health,pool,serviceAuthHeaders,tenantDecrypt,tenantEncrypt}from"@raeburn/service-kit";
+import{context,health,pool,serviceAuthHeaders,tenantDecrypt,tenantEncrypt,installServiceRuntime}from"@raeburn/service-kit";
 
-const app=new Hono();
+const app=new Hono();installServiceRuntime(app,"privacy");
 const sha=(v:string)=>createHash("sha256").update(v).digest("hex");
 async function privacyAudit(tenantId:string,candidateId:string|null,action:string,detail:any,actor:string|null){
  await pool.query("insert into privacy_audit(id,tenant_id,candidate_id,action,detail,actor) values($1,$2,$3,$4,$5::jsonb,$6)",[randomUUID(),tenantId,candidateId,action,JSON.stringify(detail||{}),actor]);

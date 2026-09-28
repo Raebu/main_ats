@@ -1,5 +1,5 @@
-import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{z}from"zod";import{context,health,pool}from"@raeburn/service-kit";
-const app=new Hono();
+import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{z}from"zod";import{context,health,pool,installServiceRuntime}from"@raeburn/service-kit";
+const app=new Hono();installServiceRuntime(app,"scheduler");
 app.get("/health",async c=>c.json(await health("scheduler")));
 app.get("/v1/scheduled-actions",async c=>{const x=context(c.req.raw.headers);return c.json((await pool.query("select * from scheduled_actions where tenant_id=$1 order by run_at",[x.tenantId])).rows);});
 app.post("/v1/scheduled-actions",async c=>{const x=context(c.req.raw.headers),b=z.object({actionType:z.string(),runAt:z.string().datetime(),payload:z.record(z.string(),z.unknown()).default({}),recurrence:z.enum(["HOURLY","DAILY","WEEKLY"]).nullable().optional(),timezone:z.string().default("UTC"),maxRuns:z.number().int().positive().nullable().optional()}).parse(await c.req.json()),id=randomUUID();await pool.query("insert into scheduled_actions(id,tenant_id,action_type,run_at,payload,recurrence,timezone,max_runs) values($1,$2,$3,$4,$5::jsonb,$6,$7,$8)",[id,x.tenantId,b.actionType,b.runAt,JSON.stringify(b.payload),b.recurrence||null,b.timezone,b.maxRuns||null]);return c.json({id,status:"PENDING"},201);});

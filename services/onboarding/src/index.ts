@@ -1,5 +1,5 @@
-import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{z}from"zod";import{createEvent,Events}from"@raeburn/events";import{context,health,pool,serviceAuthHeaders,withTransaction,writeOutbox}from"@raeburn/service-kit";
-const app=new Hono();
+import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{z}from"zod";import{createEvent,Events}from"@raeburn/events";import{context,health,pool,serviceAuthHeaders,withTransaction,writeOutbox,installServiceRuntime}from"@raeburn/service-kit";
+const app=new Hono();installServiceRuntime(app,"onboarding");
 app.get("/health",async c=>c.json(await health("onboarding")));
 app.get("/v1/onboarding",async c=>{const x=context(c.req.raw.headers);return c.json((await pool.query("select * from new_hires where tenant_id=$1 order by created_at desc",[x.tenantId])).rows);});
 app.get("/v1/onboarding/contractors",async c=>{const x=context(c.req.raw.headers);return c.json((await pool.query("select n.*,coalesce((select json_agg(e order by e.created_at desc) from contractor_extensions e where e.tenant_id=n.tenant_id and e.new_hire_id=n.id),'[]'::json) extensions from new_hires n where n.tenant_id=$1 and n.classification='CONTRACTOR' order by n.contract_end_date nulls last,n.created_at desc",[x.tenantId])).rows);});

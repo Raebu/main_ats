@@ -2,9 +2,9 @@ import{randomUUID}from"node:crypto";
 import{serve}from"@hono/node-server";
 import{Hono}from"hono";
 import{z}from"zod";
-import{context,health,pool,serviceAuthHeaders}from"@raeburn/service-kit";
+import{context,health,pool,serviceAuthHeaders,installServiceRuntime}from"@raeburn/service-kit";
 
-const app=new Hono();
+const app=new Hono();installServiceRuntime(app,"intelligence");
 const CANDIDATES=process.env.CANDIDATES_URL||"http://localhost:4102";
 const JOBS=process.env.JOBS_URL||"http://localhost:4101";
 const APPLICATIONS=process.env.APPLICATIONS_URL||"http://localhost:4103";

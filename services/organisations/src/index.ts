@@ -1,5 +1,5 @@
-import{createHash,randomBytes,randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{context,health,pool}from"@raeburn/service-kit";
-const app=new Hono();const sha=(v:string)=>createHash("sha256").update(v).digest("hex");
+import{createHash,randomBytes,randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{context,health,pool,installServiceRuntime}from"@raeburn/service-kit";
+const app=new Hono();installServiceRuntime(app,"organisations");const sha=(v:string)=>createHash("sha256").update(v).digest("hex");
 async function vendorSession(auth:string|undefined){const raw=auth?.replace(/^Bearer\s+/i,"");if(!raw?.startsWith("vendor_"))return null;const row=(await pool.query("select a.*,v.name vendor_name,v.status vendor_status from vendor_accounts a join vendors v on v.id=a.vendor_id and v.tenant_id=a.tenant_id where a.token_hash=$1 and a.status='ACTIVE' and v.status='ACTIVE'",[sha(raw)])).rows[0];if(row)await pool.query("update vendor_accounts set last_used_at=now() where id=$1",[row.id]);return row||null;}
 app.get("/health",async c=>c.json(await health("organisations")));
 app.get("/v1/organisations",async c=>{const x=context(c.req.raw.headers);return c.json((await pool.query("select * from organisations where tenant_id=$1 order by name",[x.tenantId])).rows);});

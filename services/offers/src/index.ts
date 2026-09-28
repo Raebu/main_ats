@@ -3,9 +3,9 @@ import{serve}from"@hono/node-server";
 import{Hono}from"hono";
 import{z}from"zod";
 import{createEvent,Events}from"@raeburn/events";
-import{context,health,pool,serviceAuthHeaders,withTransaction,writeOutbox}from"@raeburn/service-kit";
+import{context,health,pool,serviceAuthHeaders,withTransaction,writeOutbox,installServiceRuntime}from"@raeburn/service-kit";
 
-const app=new Hono();
+const app=new Hono();installServiceRuntime(app,"offers");
 const APPLICATIONS=process.env.APPLICATIONS_URL||"http://localhost:4103";
 const JOBS=process.env.JOBS_URL||"http://localhost:4101";
 const CANDIDATES=process.env.CANDIDATES_URL||"http://localhost:4102";

@@ -5,9 +5,9 @@ import{Hono}from"hono";
 import{SignJWT,jwtVerify,createRemoteJWKSet,decodeProtectedHeader,exportJWK,importPKCS8,importSPKI}from"jose";
 import{generateAuthenticationOptions,generateRegistrationOptions,verifyAuthenticationResponse,verifyRegistrationResponse}from"@simplewebauthn/server";
 import{z}from"zod";
-import{health,pool,secretValue as readSecret}from"@raeburn/service-kit";
+import{health,pool,secretValue as readSecret,installServiceRuntime}from"@raeburn/service-kit";
 
-const app=new Hono();
+const app=new Hono();installServiceRuntime(app,"identity");
 const cfg=(name:string)=>readSecret(name);const secret=()=>new TextEncoder().encode(cfg("AUTH_SECRET")||(process.env.NODE_ENV!=="production"?"change-me":(()=>{throw new Error("AUTH_SECRET is not configured")})()));
 const tenant=()=>process.env.DEFAULT_TENANT_ID||"tenant_raeburn_group";
 const mfaKey=()=>createHmac("sha256",cfg("MFA_ENCRYPTION_KEY")||(process.env.NODE_ENV!=="production"?cfg("AUTH_SECRET")||"change-me":(()=>{throw new Error("MFA_ENCRYPTION_KEY is not configured")})())).update("mfa:"+tenant()).digest();

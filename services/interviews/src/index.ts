@@ -3,9 +3,9 @@ import{serve}from"@hono/node-server";
 import{Hono}from"hono";
 import{z}from"zod";
 import{createEvent,Events}from"@raeburn/events";
-import{context,health,pool,withTransaction,writeOutbox}from"@raeburn/service-kit";
+import{context,health,pool,withTransaction,writeOutbox,installServiceRuntime}from"@raeburn/service-kit";
 
-const app=new Hono();
+const app=new Hono();installServiceRuntime(app,"interviews");
 const ScoreValue=z.union([z.number().min(1).max(5),z.object({score:z.number().min(1).max(5),evidence:z.string().min(1).optional()})]);
 
 function requiredKeys(dimensions:any[]){return(dimensions||[]).filter(d=>d?.required!==false).map(d=>String(d.key));}

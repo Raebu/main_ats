@@ -1,4 +1,4 @@
-import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{context,health,pool}from"@raeburn/service-kit";
+import{randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{context,health,pool,installServiceRuntime}from"@raeburn/service-kit";
 import{googleFreeBusy,googleCreateEvent,googleCreateMeetEvent}from"@raeburn/connector-google-calendar";
 import{gmailSend}from"@raeburn/connector-gmail";
 import{microsoftSchedule,microsoftCreateEvent}from"@raeburn/connector-microsoft-calendar";
@@ -9,7 +9,7 @@ import{teamsNotify}from"@raeburn/connector-teams";
 import{zoomCreateMeeting}from"@raeburn/connector-zoom";
 import{genericRest}from"@raeburn/connector-generic-rest";
 
-const app=new Hono();
+const app=new Hono();installServiceRuntime(app,"integrations");
 const builtIns=[
  {provider:"google-jobs",status:"READY",mode:"structured-data",message:"Published vacancies expose JobPosting structured data on canonical careers pages."},
  {provider:"json-feed",status:"READY",mode:"feed",message:"Public JSON vacancy feed is available."},
