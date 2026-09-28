@@ -19,6 +19,16 @@ This is the operator checklist for first production activation.
 
 The deployment workflow temporarily opens SSH only to the current GitHub runner IP, deploys, then removes the firewall rule.
 
+## Generate application secrets locally
+
+Run:
+```
+node scripts/generate-deployment-secrets.mjs staging
+node scripts/generate-deployment-secrets.mjs production
+```
+
+This creates git-ignored files under `.raeburn-deploy/`. Fill only the provider placeholders in each runtime file, then copy the completed file into the corresponding GitHub environment secret `RUNTIME_ENV_FILE`. The companion `github.<environment>.secrets` file contains `DATABASE_RUNTIME_PASSWORD` and `CAREERS_ROUTING_SECRET`.
+
 ## GitHub environment: staging
 
 Secrets:
