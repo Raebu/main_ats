@@ -33,10 +33,29 @@ jobs:
           WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha }}
           FALLBACK_SHA: ${{ github.sha }}
         run: echo "value=${REQUESTED_SHA:-${WORKFLOW_SHA:-$FALLBACK_SHA}}" >> "$GITHUB_OUTPUT"
+      - name: Require matching Security workflow success
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ steps.sha.outputs.value }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            result=$(gh api --method GET "repos/${GITHUB_REPOSITORY}/actions/workflows/security.yml/runs" -f branch=main -f head_sha="$SHA" -f per_page=20)
+            conclusion=$(printf '%s' "$result" | jq -r '.workflow_runs | sort_by(.created_at) | reverse | .[0].conclusion // ""')
+            status=$(printf '%s' "$result" | jq -r '.workflow_runs | sort_by(.created_at) | reverse | .[0].status // ""')
+            if [ "$status" = "completed" ] && [ "$conclusion" = "success" ]; then exit 0; fi
+            if [ "$status" = "completed" ] && [ -n "$conclusion" ]; then echo "Security workflow failed: $conclusion"; exit 1; fi
+            sleep 10
+          done
+          echo "Timed out waiting for Security workflow for $SHA"
+          exit 1
 
   image:
     needs: qualify
     runs-on: ubuntu-latest
+    outputs:
+      image_ref: ${{ steps.immutable.outputs.image_ref }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,7 +70,15 @@ jobs:
         run: |
           docker build -f infrastructure/production/Dockerfile.workspace --build-arg WORKSPACE=@raeburn/api-gateway -t "$IMAGE:${{ needs.qualify.outputs.sha }}" .
           docker push "$IMAGE:${{ needs.qualify.outputs.sha }}"
-          cosign sign --yes "$IMAGE:${{ needs.qualify.outputs.sha }}"
+      - id: immutable
+        name: Resolve immutable digest
+        shell: bash
+        run: |
+          digest=$(docker buildx imagetools inspect "$IMAGE:${{ needs.qualify.outputs.sha }}" --format '{{.Manifest.Digest}}')
+          test -n "$digest"
+          echo "image_ref=$IMAGE@$digest" >> "$GITHUB_OUTPUT"
+      - name: Sign immutable image
+        run: cosign sign --yes "${{ steps.immutable.outputs.image_ref }}"
 
   staging:
     needs: [qualify,image]
@@ -66,15 +93,22 @@ jobs:
           DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
           DEPLOY_WEBHOOK_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
           RELEASE_SHA: ${{ needs.qualify.outputs.sha }}
-          IMAGE: ${{ env.IMAGE }}
+          IMAGE_REF: ${{ needs.image.outputs.image_ref }}
         run: node scripts/deploy-release.mjs staging
       - name: Staging smoke test
         env:
           SMOKE_BASE_URL: ${{ vars.BASE_URL }}
         run: node scripts/release-smoke.mjs
+      - name: Staging DAST baseline
+        if: vars.DAST_ON_RELEASE == 'true'
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: ${{ vars.BASE_URL }}
+          fail_action: true
+          allow_issue_writing: false
 
   production:
-    needs: [qualify,staging]
+    needs: [qualify,image,staging]
     environment: production
     runs-on: ubuntu-latest
     steps:
@@ -86,7 +120,7 @@ jobs:
           DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
           DEPLOY_WEBHOOK_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
           RELEASE_SHA: ${{ needs.qualify.outputs.sha }}
-          IMAGE: ${{ env.IMAGE }}
+          IMAGE_REF: ${{ needs.image.outputs.image_ref }}
           DEPLOY_STRATEGY: blue-green
         run: node scripts/deploy-release.mjs production
       - name: Production smoke test
@@ -101,7 +135,7 @@ jobs:
           DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
           DEPLOY_WEBHOOK_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
           RELEASE_SHA: ${{ needs.qualify.outputs.sha }}
-          IMAGE: ${{ env.IMAGE }}
+          IMAGE_REF: ${{ needs.image.outputs.image_ref }}
           ROLLBACK: "true"
         run: node scripts/deploy-release.mjs production
       - if: steps.smoke.outcome == 'failure'
