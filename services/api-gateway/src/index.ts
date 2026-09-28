@@ -41,10 +41,16 @@ app.all("/v1/*",async c=>{
  if(!isPublic(c.req.method,url.pathname)){
    const auth=c.req.header("authorization");
    if(!auth)return c.json({code:"UNAUTHENTICATED",message:"Authentication required",correlationId},401);
-   const verify=await fetch(IDENTITY+"/v1/identity/introspect",{headers:{authorization:auth}});
-   if(!verify.ok)return c.json({code:"UNAUTHENTICATED",message:"Invalid or expired session",correlationId},401);
-   claims=await verify.json();
-   tenantId=claims.tenantId||tenantId;
+   const bearer=auth.replace(/^Bearer\s+/i,"");
+   if(bearer.startsWith("rt_live_")){
+     const verify=await fetch(PLATFORM+"/v1/platform/api-keys/introspect",{method:"POST",headers:serviceAuthHeaders({"content-type":"application/json","x-tenant-id":defaultTenant,"x-correlation-id":correlationId}),body:JSON.stringify({token:bearer})});
+     if(!verify.ok)return c.json({code:"UNAUTHENTICATED",message:"Invalid or expired API key",correlationId},401);
+     const key:any=await verify.json();claims={sub:"api-key:"+key.id,tenantId:key.tenantId,roles:["CUSTOMER_API"],permissions:key.scopes||[],organisationIds:["*"],apiKey:true};tenantId=key.tenantId;
+   }else{
+     const verify=await fetch(IDENTITY+"/v1/identity/introspect",{headers:{authorization:auth}});
+     if(!verify.ok)return c.json({code:"UNAUTHENTICATED",message:"Invalid or expired session",correlationId},401);
+     claims=await verify.json();tenantId=claims.tenantId||tenantId;
+   }
    const permissions:string[]=Array.isArray(claims.permissions)?claims.permissions:[];
    const needed=requiredPermission(c.req.method,url.pathname);
    if(!hasPermission(permissions,needed))
