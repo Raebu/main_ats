@@ -32,7 +32,8 @@
     "build:admin": "npm --workspace @raeburn/talent-admin run build",
     "build:frontends": "npm run build:careers && npm run build:admin",
     "migrate:services": "node scripts/migrate-services.mjs",
-    "check": "npm run typecheck && npm run test && npm run build:frontends"
+    "check": "npm run typecheck && npm run test && npm run build:frontends",
+    "migrate:validate": "node scripts/validate-migrations.mjs"
   },
   "dependencies": {
     "@prisma/client": "6.12.0",
@@ -60,4 +61,4 @@
     "typescript": "^5.9.2",
     "vitest": "^5.0.2"
   }
-}
+}\n
