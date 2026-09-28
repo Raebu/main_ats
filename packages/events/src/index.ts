@@ -59,3 +59,47 @@ export const Events={
   communicationSent:"communication.sent.v1",
   communicationFailed:"communication.failed.v1"
 } as const;
+
+
+export const PlatformEvents={
+  deadLetter:"platform.dead_letter.v1",
+  replayRequested:"platform.replay_requested.v1"
+} as const;
+
+const IdentifierPayload=z.object({
+  id:z.string().optional(),
+  applicationId:z.string().optional(),
+  candidateId:z.string().optional(),
+  jobId:z.string().optional()
+}).passthrough();
+
+export const EventSchemaRegistry:Record<string,z.ZodTypeAny>={
+  ...Object.fromEntries(Object.values(Events).map(type=>[type,IdentifierPayload])),
+  [PlatformEvents.deadLetter]:z.object({
+    originalEventId:z.string().optional(),
+    originalEventType:z.string().optional(),
+    consumer:z.string(),
+    subject:z.string(),
+    error:z.string(),
+    deliveries:z.number().int().positive()
+  }).passthrough(),
+  [PlatformEvents.replayRequested]:z.object({
+    originalEventId:z.string(),
+    requestedBy:z.string().optional()
+  }).passthrough()
+};
+
+export function eventSchemaFor(eventType:string){
+  if(EventSchemaRegistry[eventType])return EventSchemaRegistry[eventType];
+  if(/^scheduler\.[a-z0-9_.-]+\.due\.v1$/i.test(eventType))return IdentifierPayload;
+  return null;
+}
+
+export function validateDomainEvent(input:unknown):DomainEvent{
+  const event=EventEnvelope.parse(input),schema=eventSchemaFor(event.eventType);
+  if(!schema&&process.env.ALLOW_UNREGISTERED_EVENTS!=="true")throw new Error("Unregistered event type: "+event.eventType);
+  if(schema)schema.parse(event.payload);
+  const suffix=event.eventType.match(/\.v(\d+)$/);
+  if(suffix&&Number(suffix[1])!==event.eventVersion)throw new Error("Event type/version mismatch: "+event.eventType+" vs "+event.eventVersion);
+  return event;
+}
