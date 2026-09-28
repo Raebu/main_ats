@@ -51,6 +51,8 @@ jobs:
           TALENT_API_URL: http://127.0.0.1:4100
           TALENT_TENANT_ID: tenant_raeburn_group
           CAREERS_BASE_URL: https://theraeburngroup.com
+      - name: Build Storybook
+        run: npm run storybook:build
       - run: npm audit --audit-level=high
 
   workspace-validation:
