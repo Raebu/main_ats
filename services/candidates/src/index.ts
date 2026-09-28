@@ -7,6 +7,9 @@ import{context,health,pool,withTransaction,writeOutbox,installServiceRuntime}fro
 
 const app=new Hono();installServiceRuntime(app,"candidates");
 const CandidateInput=z.object({email:z.string().email(),name:z.string().min(2),telephone:z.string().optional(),location:z.string().optional(),linkedIn:z.string().optional(),portfolio:z.string().optional()});
+function cleanText(v?:string){return v?.trim().replace(/\s+/g," ");}
+function cleanPhone(v?:string){if(!v)return undefined;const raw=v.trim(),plus=raw.startsWith("+")?"+":"";const digits=raw.replace(/\D/g,"");return plus+digits;}
+function cleanUrl(v?:string){return v?.trim().replace(/\/$/,"");}
 const StructuredProfile=z.object({
  profile:z.record(z.string(),z.unknown()).optional(),tags:z.array(z.string()).optional(),customFields:z.record(z.string(),z.unknown()).optional(),
  ownerUserId:z.string().nullable().optional(),relationshipStatus:z.string().optional(),doNotContact:z.boolean().optional(),suppressionReason:z.string().nullable().optional(),
@@ -32,7 +35,7 @@ app.get("/v1/candidates/:id",async c=>{
 });
 
 app.post("/v1/candidates/resolve",async c=>{
- const x=context(c.req.raw.headers),body=CandidateInput.parse(await c.req.json()),email=body.email.toLowerCase();
+ const x=context(c.req.raw.headers),raw=CandidateInput.parse(await c.req.json()),body={...raw,name:cleanText(raw.name)!,telephone:cleanPhone(raw.telephone),location:cleanText(raw.location),linkedIn:cleanUrl(raw.linkedIn),portfolio:cleanUrl(raw.portfolio)},email=body.email.toLowerCase();
  const existing=await pool.query("select * from candidates where tenant_id=$1 and email=$2",[x.tenantId,email]);
  if(existing.rows[0])return c.json(map(existing.rows[0]));
  const id=randomUUID(),result=await withTransaction(async client=>{
@@ -45,7 +48,7 @@ app.post("/v1/candidates/resolve",async c=>{
 });
 
 app.patch("/v1/candidates/:id",async c=>{
- const x=context(c.req.raw.headers),id=c.req.param("id"),b=CandidateInput.partial().omit({email:true}).parse(await c.req.json()),current=await pool.query("select * from candidates where tenant_id=$1 and id=$2",[x.tenantId,id]);
+ const x=context(c.req.raw.headers),id=c.req.param("id"),raw=CandidateInput.partial().omit({email:true}).parse(await c.req.json()),b={...raw,name:raw.name?cleanText(raw.name):undefined,telephone:raw.telephone?cleanPhone(raw.telephone):undefined,location:raw.location?cleanText(raw.location):undefined,linkedIn:raw.linkedIn?cleanUrl(raw.linkedIn):undefined,portfolio:raw.portfolio?cleanUrl(raw.portfolio):undefined},current=await pool.query("select * from candidates where tenant_id=$1 and id=$2",[x.tenantId,id]);
  if(!current.rows[0])return c.json({code:"NOT_FOUND",message:"Candidate not found"},404);
  const next={...map(current.rows[0]),...b};
  await withTransaction(async client=>{
@@ -87,7 +90,7 @@ app.patch("/v1/candidates/:id/profile",async c=>{
    engagement_score=coalesce($23,engagement_score),freshness_at=now(),updated_at=now()
    where tenant_id=$1 and id=$2 returning *`,[
     x.tenantId,id,JSON.stringify(profile),JSON.stringify(tags),JSON.stringify(customFields),owner,relationship,dnc,reason,
-    b.employmentHistory?JSON.stringify(b.employmentHistory):null,b.education?JSON.stringify(b.education):null,b.skills?JSON.stringify(b.skills):null,
+    b.employmentHistory?JSON.stringify(b.employmentHistory):null,b.education?JSON.stringify(b.education):null,b.skills?JSON.stringify(b.skills.map((v:any)=>typeof v==="string"?cleanText(v):v)):null,
     b.qualifications?JSON.stringify(b.qualifications):null,b.certifications?JSON.stringify(b.certifications):null,b.languages?JSON.stringify(b.languages):null,
     b.salaryExpectation?JSON.stringify(b.salaryExpectation):null,b.noticePeriod===undefined?null:b.noticePeriod,
     b.workEligibility?JSON.stringify(b.workEligibility):null,b.mobility?JSON.stringify(b.mobility):null,b.workPreferences?JSON.stringify(b.workPreferences):null,
