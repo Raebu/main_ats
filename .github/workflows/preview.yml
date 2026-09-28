@@ -1,0 +1,30 @@
+name: Preview
+on:
+  pull_request:
+    types: [opened,synchronize,reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:frontends
+        env:
+          TALENT_API_URL: ${{ vars.PREVIEW_API_URL || 'http://127.0.0.1:4100' }}
+          TALENT_TENANT_ID: tenant_raeburn_group
+          CAREERS_BASE_URL: https://preview.invalid
+      - uses: actions/upload-artifact@v4
+        with:
+          name: preview-frontends-${{ github.event.pull_request.number }}
+          path: |
+            apps/careers-web/.next
+            apps/talent-admin/.next
+          retention-days: 7
