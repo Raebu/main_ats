@@ -42,3 +42,23 @@ groups:
         for: 1m
         labels: {severity: critical}
         annotations: {summary: "NATS/JetStream monitoring is unavailable"}
+
+      - alert: TalentEventConsumerLag
+        expr: max by(service,consumer)(raeburn_event_consumer_pending) > 100
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: "JetStream durable consumer lag is above 100 messages"}
+      - alert: TalentEventAckBacklog
+        expr: max by(service,consumer)(raeburn_event_consumer_ack_pending) > 50
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "JetStream consumer has a sustained unacknowledged backlog"}
+      - alert: TalentEventRedeliverySpike
+        expr: increase(raeburn_event_consumer_redelivered[10m]) > 5
+        labels: {severity: warning}
+        annotations: {summary: "JetStream redelivery count increased sharply"}
+      - alert: TalentMalwareScannerSlow
+        expr: (sum(rate(raeburn_malware_scan_duration_ms_sum[10m])) / clamp_min(sum(rate(raeburn_malware_scan_duration_ms_count[10m])), 0.001)) > 15000
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: "Average malware scan latency is above 15 seconds"}
