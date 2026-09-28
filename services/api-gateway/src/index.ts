@@ -1,5 +1,5 @@
-import{createHash,randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{requiredPermission,hasPermission}from"@raeburn/policy";import{serviceAuthHeaders}from"@raeburn/service-kit";
-const app=new Hono(),IDENTITY=process.env.IDENTITY_URL||"http://localhost:4109",AUDIT=process.env.AUDIT_URL||"http://localhost:4111";
+import{createHash,randomUUID}from"node:crypto";import{serve}from"@hono/node-server";import{Hono}from"hono";import{requiredPermission,hasPermission}from"@raeburn/policy";import{serviceAuthHeaders,installServiceRuntime}from"@raeburn/service-kit";
+const app=new Hono();installServiceRuntime(app,"api-gateway");const IDENTITY=process.env.IDENTITY_URL||"http://localhost:4109",AUDIT=process.env.AUDIT_URL||"http://localhost:4111";
 const rate=new Map<string,{count:number;reset:number}>();
 const maxBody=Number(process.env.MAX_REQUEST_BYTES||12*1024*1024);
 const allowedOrigins=(process.env.CORS_ORIGINS||"https://theraeburngroup.com,https://talent.theraeburngroup.com").split(",").map(x=>x.trim()).filter(Boolean);
