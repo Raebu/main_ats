@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 : "${DEPLOY_HOST:?DEPLOY_HOST required}"
-: "${DEPLOY_USER:?DEPLOY_USER required}"
+DEPLOY_USER="${DEPLOY_USER:-root}"
 : "${DEPLOY_SSH_KEY:?DEPLOY_SSH_KEY required}"
 : "${RUNTIME_ENV_FILE:?RUNTIME_ENV_FILE required}"
 : "${UNIT_IMAGE_REF:?UNIT_IMAGE_REF required}"
@@ -14,7 +14,12 @@ SCP=(scp -o StrictHostKeyChecking=accept-new -i /tmp/raeburn-deploy-key)
 
 "${SSH[@]}" 'sudo mkdir -p /opt/raeburn-talent && sudo chown "$USER":"$USER" /opt/raeburn-talent'
 "${SCP[@]}" infrastructure/production/docker-compose.production.yml infrastructure/production/Caddyfile "${DEPLOY_USER}@${DEPLOY_HOST}:/opt/raeburn-talent/"
-printf '%s' "$RUNTIME_ENV_FILE" | "${SSH[@]}" 'umask 077; cat > /opt/raeburn-talent/.env.production'
+tmp_env=$(mktemp)
+printf '%s\n' "$RUNTIME_ENV_FILE" > "$tmp_env"
+if [ -n "${DATABASE_BASE_URL_OVERRIDE:-}" ]; then printf 'DATABASE_BASE_URL=%s\n' "$DATABASE_BASE_URL_OVERRIDE" >> "$tmp_env"; fi
+if [ -n "${NATS_URL_OVERRIDE:-}" ]; then printf 'NATS_URL=%s\n' "$NATS_URL_OVERRIDE" >> "$tmp_env"; fi
+cat "$tmp_env" | "${SSH[@]}" 'umask 077; cat > /opt/raeburn-talent/.env.production'
+rm -f "$tmp_env"
 
 if [ "${ROLLBACK:-false}" = "true" ]; then
   "${SSH[@]}" 'cd /opt/raeburn-talent && test -f .release.previous && cp .release.previous .release.current'
