@@ -34,6 +34,7 @@ export async function publish(event:DomainEvent){
   const bus=await eventBus();
   bus.publish(event.eventType,codec.encode(event));
 }
+export function serviceAuthRequired(){return process.env.NODE_ENV==="production"||process.env.REQUIRE_SERVICE_AUTH==="true";}
 export function serviceAuthHeaders(base:Record<string,string>={}){
   const secret=secretValue("SERVICE_AUTH_SECRET");if(!secret){if(serviceAuthRequired())throw new Error("SERVICE_AUTH_SECRET is required for production service authentication");return base;}
   const service=process.env.SERVICE_NAME||"raeburn-service",timestamp=String(Date.now()),tenantId=base["x-tenant-id"]||process.env.DEFAULT_TENANT_ID||"tenant_raeburn_group",correlationId=base["x-correlation-id"]||randomUUID();
