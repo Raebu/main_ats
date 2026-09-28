@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { connect, JSONCodec, type NatsConnection } from "nats";
 import pg from "pg";
 import type { DomainEvent } from "@raeburn/events";
@@ -6,6 +7,24 @@ import type { DomainEvent } from "@raeburn/events";
 export const pool=new pg.Pool({connectionString:process.env.DATABASE_URL});
 const codec=JSONCodec<DomainEvent>();
 let nc:NatsConnection|undefined;
+
+export function secretValue(name:string){
+  const direct=process.env[name];
+  if(direct)return direct;
+  const file=process.env[name+"_FILE"];
+  if(!file)return undefined;
+  try{return readFileSync(file,"utf8").trimEnd();}catch(error){
+    if(process.env.NODE_ENV==="production")throw new Error("Unable to read required secret file for "+name,{cause:error});
+    return undefined;
+  }
+}
+
+export function requireSecret(name:string,developmentFallback?:string){
+  const value=secretValue(name);
+  if(value)return value;
+  if(process.env.NODE_ENV!=="production"&&developmentFallback!==undefined)return developmentFallback;
+  throw new Error("Required secret is not configured: "+name+" (set "+name+" or "+name+"_FILE)");
+}
 
 export async function eventBus(){
   if(!nc) nc=await connect({servers:process.env.NATS_URL||"nats://localhost:4222",name:process.env.SERVICE_NAME||"raeburn-service"});
@@ -16,14 +35,14 @@ export async function publish(event:DomainEvent){
   bus.publish(event.eventType,codec.encode(event));
 }
 export function serviceAuthHeaders(base:Record<string,string>={}){
-  const secret=process.env.SERVICE_AUTH_SECRET;if(!secret)return base;
+  const secret=secretValue("SERVICE_AUTH_SECRET");if(!secret){if(process.env.REQUIRE_SERVICE_AUTH==="true")throw new Error("SERVICE_AUTH_SECRET is required when service authentication is enabled");return base;}
   const service=process.env.SERVICE_NAME||"raeburn-service",timestamp=String(Date.now()),tenantId=base["x-tenant-id"]||process.env.DEFAULT_TENANT_ID||"tenant_raeburn_group",correlationId=base["x-correlation-id"]||randomUUID();
   const signature=createHmac("sha256",secret).update([service,timestamp,tenantId,correlationId].join("|")).digest("base64url");
   return{...base,"x-tenant-id":tenantId,"x-correlation-id":correlationId,"x-service-name":service,"x-service-timestamp":timestamp,"x-service-signature":signature};
 }
 export function verifyServiceAuth(headers:Headers){
   if(process.env.REQUIRE_SERVICE_AUTH!=="true")return true;
-  const secret=process.env.SERVICE_AUTH_SECRET,service=headers.get("x-service-name"),timestamp=headers.get("x-service-timestamp"),signature=headers.get("x-service-signature"),tenantId=headers.get("x-tenant-id")||process.env.DEFAULT_TENANT_ID||"tenant_raeburn_group",correlationId=headers.get("x-correlation-id")||"";
+  const secret=secretValue("SERVICE_AUTH_SECRET"),service=headers.get("x-service-name"),timestamp=headers.get("x-service-timestamp"),signature=headers.get("x-service-signature"),tenantId=headers.get("x-tenant-id")||process.env.DEFAULT_TENANT_ID||"tenant_raeburn_group",correlationId=headers.get("x-correlation-id")||"";
   if(!secret||!service||!timestamp||!signature)return false;
   const age=Math.abs(Date.now()-Number(timestamp));if(!Number.isFinite(age)||age>120000)return false;
   const expected=createHmac("sha256",secret).update([service,timestamp,tenantId,correlationId].join("|")).digest("base64url"),a=Buffer.from(expected),b=Buffer.from(signature);
@@ -90,7 +109,7 @@ export function redact(value:Record<string,unknown>){
 
 
 function tenantDataKey(tenantId:string){
-  const master=process.env.TENANT_ENCRYPTION_MASTER_KEY||process.env.AUTH_SECRET||"development-only-change-me";
+  const master=secretValue("TENANT_ENCRYPTION_MASTER_KEY")||(process.env.NODE_ENV!=="production"?secretValue("AUTH_SECRET")||"development-only-change-me":undefined);if(!master)throw new Error("TENANT_ENCRYPTION_MASTER_KEY is required in production");
   return createHmac("sha256",master).update("raeburn-talent:"+tenantId).digest();
 }
 export function tenantEncrypt(tenantId:string,value:string){
