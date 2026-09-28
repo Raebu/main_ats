@@ -12,9 +12,24 @@ on:
   schedule:
     - cron: "11 5 * * *"
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to plan/apply
+        required: false
+        default: staging
+        type: choice
+        options: [staging, production]
+      apply:
+        description: Apply the approved plan
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
+
+env:
+  TOFU_VERSION: "1.10.6"
 
 jobs:
   validate:
@@ -23,12 +38,83 @@ jobs:
       - uses: actions/checkout@v4
       - uses: opentofu/setup-opentofu@v1
         with:
-          tofu_version: "1.10.6"
+          tofu_version: ${{ env.TOFU_VERSION }}
       - run: tofu fmt -check -recursive infrastructure/terraform
       - run: tofu -chdir=infrastructure/terraform init -backend=false
       - run: tofu -chdir=infrastructure/terraform validate
 
+  plan:
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' || vars.IAC_PLAN_ENABLED == 'true'
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+      - name: Configure encrypted remote state
+        env:
+          TF_BACKEND_HCL: ${{ secrets.TF_BACKEND_HCL }}
+        run: |
+          test -n "$TF_BACKEND_HCL"
+          printf '%s' "$TF_BACKEND_HCL" > /tmp/backend.hcl
+          tofu -chdir=infrastructure/terraform init -input=false -backend-config=/tmp/backend.hcl
+      - name: Plan infrastructure
+        env:
+          TF_VAR_digitalocean_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_ssh_key_fingerprints: ${{ secrets.TF_VAR_SSH_KEY_FINGERPRINTS }}
+          TF_VAR_internet_egress_cidrs: ${{ secrets.TF_VAR_INTERNET_EGRESS_CIDRS }}
+          TF_VAR_alert_emails: ${{ secrets.TF_VAR_ALERT_EMAILS }}
+          TARGET_ENV: ${{ github.event.inputs.environment || 'staging' }}
+        run: |
+          set -euo pipefail
+          varfile="${TARGET_ENV}.tfvars.example"
+          tofu -chdir=infrastructure/terraform plan -input=false -out=/tmp/talent.tfplan -var-file="$varfile"
+          tofu -chdir=infrastructure/terraform show -no-color /tmp/talent.tfplan > /tmp/talent-plan.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: infrastructure-plan-${{ github.event.inputs.environment || 'staging' }}-${{ github.sha }}
+          path: /tmp/talent-plan.txt
+          retention-days: 14
+
+  apply:
+    needs: [validate, plan]
+    if: github.event_name == 'workflow_dispatch' && inputs.apply == true
+    environment: ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+      - name: Configure encrypted remote state
+        env:
+          TF_BACKEND_HCL: ${{ secrets.TF_BACKEND_HCL }}
+        run: |
+          test -n "$TF_BACKEND_HCL"
+          printf '%s' "$TF_BACKEND_HCL" > /tmp/backend.hcl
+          tofu -chdir=infrastructure/terraform init -input=false -backend-config=/tmp/backend.hcl
+      - name: Apply approved infrastructure
+        env:
+          TF_VAR_digitalocean_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_ssh_key_fingerprints: ${{ secrets.TF_VAR_SSH_KEY_FINGERPRINTS }}
+          TF_VAR_internet_egress_cidrs: ${{ secrets.TF_VAR_INTERNET_EGRESS_CIDRS }}
+          TF_VAR_alert_emails: ${{ secrets.TF_VAR_ALERT_EMAILS }}
+          TARGET_ENV: ${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+          tofu -chdir=infrastructure/terraform plan -input=false -out=/tmp/talent.tfplan -var-file="${TARGET_ENV}.tfvars.example"
+          tofu -chdir=infrastructure/terraform apply -input=false -auto-approve /tmp/talent.tfplan
+
   drift:
+    needs: validate
     if: github.event_name == 'schedule' && vars.TF_DRIFT_ENABLED == 'true'
     environment: production
     runs-on: ubuntu-latest
@@ -36,21 +122,23 @@ jobs:
       - uses: actions/checkout@v4
       - uses: opentofu/setup-opentofu@v1
         with:
-          tofu_version: "1.10.6"
+          tofu_version: ${{ env.TOFU_VERSION }}
       - name: Configure remote backend
         env:
           TF_BACKEND_HCL: ${{ secrets.TF_BACKEND_HCL }}
         run: |
           test -n "$TF_BACKEND_HCL"
           printf '%s' "$TF_BACKEND_HCL" > /tmp/backend.hcl
-          tofu -chdir=infrastructure/terraform init -backend-config=/tmp/backend.hcl
+          tofu -chdir=infrastructure/terraform init -input=false -backend-config=/tmp/backend.hcl
       - name: Detect production drift
         env:
-          TF_VAR_environment: production
           TF_VAR_digitalocean_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_ssh_key_fingerprints: ${{ secrets.TF_VAR_SSH_KEY_FINGERPRINTS }}
+          TF_VAR_internet_egress_cidrs: ${{ secrets.TF_VAR_INTERNET_EGRESS_CIDRS }}
+          TF_VAR_alert_emails: ${{ secrets.TF_VAR_ALERT_EMAILS }}
         run: |
           set +e
           tofu -chdir=infrastructure/terraform plan -detailed-exitcode -input=false -refresh=true -var-file=production.tfvars.example
