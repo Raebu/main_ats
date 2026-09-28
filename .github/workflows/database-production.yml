@@ -1,0 +1,39 @@
+name: Production Database
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Database environment
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    environment: ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Create service databases and runtime role
+        env:
+          DATABASE_ADMIN_URL: ${{ secrets.DATABASE_ADMIN_URL }}
+          DATABASE_RUNTIME_PASSWORD: ${{ secrets.DATABASE_RUNTIME_PASSWORD }}
+        run: node scripts/provision-production-databases.mjs prepare
+      - name: Apply immutable service migrations
+        env:
+          DATABASE_ADMIN_URL: ${{ secrets.DATABASE_ADMIN_URL }}
+        run: node scripts/migrate-services.mjs
+      - name: Grant runtime permissions
+        env:
+          DATABASE_ADMIN_URL: ${{ secrets.DATABASE_ADMIN_URL }}
+          DATABASE_RUNTIME_PASSWORD: ${{ secrets.DATABASE_RUNTIME_PASSWORD }}
+        run: node scripts/provision-production-databases.mjs grant
