@@ -84,6 +84,23 @@ services:
       timeout: 5s
       retries: 20
 
+  s3test:
+    image: localstack/localstack:latest
+    environment:
+      SERVICES: s3
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    ports:
+      - "4566:4566"
+    volumes:
+      - talent_s3test:/var/lib/localstack
+    healthcheck:
+      test: ["CMD-SHELL","curl -fsS http://localhost:4566/_localstack/health | grep -q '\"s3\"'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   prometheus:
     image: prom/prometheus:latest
     command: ["--config.file=/etc/prometheus/prometheus.yml","--storage.tsdb.retention.time=30d"]
@@ -158,6 +175,7 @@ volumes:
   talent_postgres: {}
   talent_nats: {}
   talent_objects: {}
+  talent_s3test: {}
   talent_prometheus: {}
   talent_tempo: {}
   talent_loki: {}
