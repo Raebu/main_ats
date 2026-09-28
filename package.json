@@ -38,7 +38,8 @@
     "db:backup": "node scripts/backup-service-databases.mjs",
     "db:restore-drill": "node scripts/restore-drill.mjs",
     "db:provision-roles": "node scripts/provision-db-roles.mjs",
-    "synthetic:candidate": "node scripts/synthetic-candidate-journey.mjs"
+    "synthetic:candidate": "node scripts/synthetic-candidate-journey.mjs",
+    "db:maintenance": "node scripts/db-maintenance.mjs"
   },
   "dependencies": {
     "@prisma/client": "6.12.0",
