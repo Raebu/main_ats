@@ -97,3 +97,13 @@ create table if not exists fairness_monitor_runs(
  id text primary key,tenant_id text not null,metric text not null,cohorts jsonb not null,minimum_group_size int not null default 5,
  findings jsonb not null default '{}',methodology text not null,created_by text,created_at timestamptz not null default now()
 );
+
+
+-- Baseline job-related decision reasons. Tenants can extend or deactivate these.
+insert into decision_reason_taxonomy(id,tenant_id,code,label,decision_type,stages,requires_evidence,guidance)
+values
+ ('reason_reject_requirements','tenant_raeburn_group','REQUIREMENTS_NOT_EVIDENCED','Role requirements not sufficiently evidenced','REJECT','["REVIEW","SHORTLIST","INTERVIEW","FINAL_INTERVIEW","OFFER"]'::jsonb,true,'Record the specific published requirement and the evidence considered. Do not use protected characteristics, disability/adjustment information or AI output as the reason.'),
+ ('reason_reject_assessment','tenant_raeburn_group','ASSESSMENT_CRITERIA_NOT_MET','Assessment criteria not met','REJECT','["REVIEW","SHORTLIST","INTERVIEW","FINAL_INTERVIEW"]'::jsonb,true,'Reference the relevant structured assessment or scorecard criterion and supporting evidence.'),
+ ('reason_reject_role_change','tenant_raeburn_group','ROLE_NO_LONGER_AVAILABLE','Role closed, cancelled or materially changed','REJECT','["REVIEW","SHORTLIST","INTERVIEW","FINAL_INTERVIEW","OFFER"]'::jsonb,true,'Use only where the vacancy itself changed or ceased to be available; record the vacancy evidence.'),
+ ('reason_hire_evidence','tenant_raeburn_group','SELECTION_CRITERIA_EVIDENCED','Selection criteria evidenced','HIRE','["OFFER"]'::jsonb,true,'Record the job-related evidence supporting the final human hiring decision, including structured interview/assessment/offer evidence where applicable.')
+on conflict(tenant_id,code) do nothing;
