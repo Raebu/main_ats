@@ -1,0 +1,108 @@
+name: Release
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Commit SHA to release
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+env:
+  IMAGE: ghcr.io/raebu/raeburn-talent-gateway
+
+jobs:
+  qualify:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.sha.outputs.value }}
+    steps:
+      - id: sha
+        shell: bash
+        env:
+          REQUESTED_SHA: ${{ inputs.sha }}
+          WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha }}
+          FALLBACK_SHA: ${{ github.sha }}
+        run: echo "value=${REQUESTED_SHA:-${WORKFLOW_SHA:-$FALLBACK_SHA}}" >> "$GITHUB_OUTPUT"
+
+  image:
+    needs: qualify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.qualify.outputs.sha }}
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: sigstore/cosign-installer@v3
+      - name: Build and push immutable image
+        run: |
+          docker build -f infrastructure/production/Dockerfile.workspace --build-arg WORKSPACE=@raeburn/api-gateway -t "$IMAGE:${{ needs.qualify.outputs.sha }}" .
+          docker push "$IMAGE:${{ needs.qualify.outputs.sha }}"
+          cosign sign --yes "$IMAGE:${{ needs.qualify.outputs.sha }}"
+
+  staging:
+    needs: [qualify,image]
+    environment: staging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.qualify.outputs.sha }}
+      - name: Deploy immutable release to staging
+        env:
+          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+          DEPLOY_WEBHOOK_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
+          RELEASE_SHA: ${{ needs.qualify.outputs.sha }}
+          IMAGE: ${{ env.IMAGE }}
+        run: node scripts/deploy-release.mjs staging
+      - name: Staging smoke test
+        env:
+          SMOKE_BASE_URL: ${{ vars.BASE_URL }}
+        run: node scripts/release-smoke.mjs
+
+  production:
+    needs: [qualify,staging]
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.qualify.outputs.sha }}
+      - name: Progressive production deployment
+        env:
+          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+          DEPLOY_WEBHOOK_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
+          RELEASE_SHA: ${{ needs.qualify.outputs.sha }}
+          IMAGE: ${{ env.IMAGE }}
+          DEPLOY_STRATEGY: blue-green
+        run: node scripts/deploy-release.mjs production
+      - name: Production smoke test
+        id: smoke
+        continue-on-error: true
+        env:
+          SMOKE_BASE_URL: ${{ vars.BASE_URL }}
+        run: node scripts/release-smoke.mjs
+      - name: Automatic rollback
+        if: steps.smoke.outcome == 'failure'
+        env:
+          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+          DEPLOY_WEBHOOK_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
+          RELEASE_SHA: ${{ needs.qualify.outputs.sha }}
+          IMAGE: ${{ env.IMAGE }}
+          ROLLBACK: "true"
+        run: node scripts/deploy-release.mjs production
+      - if: steps.smoke.outcome == 'failure'
+        run: exit 1
