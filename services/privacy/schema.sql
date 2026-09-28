@@ -143,3 +143,14 @@ values
  ('lb_security','tenant_raeburn_group','Recruitment platform security, fraud prevention and audit','["security events","access logs","audit metadata"]'::jsonb,'Legitimate interests','UK GDPR Article 6(1)(f)','Subject to documented necessity, balancing and security safeguards.'),
  ('lb_marketing','tenant_raeburn_group','Optional recruitment marketing and talent-community communications','["contact details","communication preferences","campaign engagement"]'::jsonb,'Consent where used','UK GDPR Article 6(1)(a)','Optional processing; withdrawal must be honoured without affecting core recruitment.')
 on conflict(tenant_id,purpose) do nothing;
+
+
+-- DUAA 2025 / ICO complaints-handling evidence
+create table if not exists privacy_complaints(
+ id text primary key,tenant_id text not null,subject_type text not null default 'CANDIDATE',subject_id text,
+ candidate_id text,request_id text,category text not null,summary text not null,status text not null default 'OPEN',
+ channel text,received_at timestamptz not null default now(),acknowledged_at timestamptz,owner text,
+ outcome text,outcome_reason text,resolved_at timestamptz,review_due_at timestamptz,
+ created_by text,created_at timestamptz not null default now(),updated_at timestamptz not null default now()
+);
+create index if not exists privacy_complaints_status on privacy_complaints(tenant_id,status,received_at desc);
