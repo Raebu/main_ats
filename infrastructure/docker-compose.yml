@@ -79,18 +79,6 @@ services:
     volumes:
       - talent_objects:/data
 
-  minio-init:
-    image: minio/mc:latest
-    depends_on:
-      - minio
-    entrypoint: >
-      /bin/sh -c "
-      until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 2; done;
-      mc mb --ignore-existing local/raeburn-talent;
-      mc version enable local/raeburn-talent;
-      exit 0;
-      "
-
   prometheus:
     image: prom/prometheus:latest
     command: ["--config.file=/etc/prometheus/prometheus.yml","--storage.tsdb.retention.time=30d"]
