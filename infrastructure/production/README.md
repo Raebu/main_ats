@@ -29,7 +29,7 @@ At minimum:
 - `AUTH_PRIVATE_KEY_PEM` and `AUTH_PUBLIC_KEY_PEM`, with `AUTH_KEY_ID`; keep previous verification keys in `AUTH_PUBLIC_KEYS_JSON` during key rotation
 - `MFA_ENCRYPTION_KEY`
 - `TENANT_ENCRYPTION_MASTER_KEY`
-- `SERVICE_AUTH_SECRET` with `REQUIRE_SERVICE_AUTH=true`
+- `SERVICE_AUTH_SECRET`; signed service-to-service authentication is mandatory automatically in production (`REQUIRE_SERVICE_AUTH=true` can also enforce it in non-production environments)
 - `WEBAUTHN_RP_ID` and `WEBAUTHN_ORIGIN`
 - `TALENT_ADMIN_URL`
 - `PASSWORD_RESET_WEBHOOK_URL` and `PASSWORD_RESET_WEBHOOK_SECRET` when reset delivery is enabled
