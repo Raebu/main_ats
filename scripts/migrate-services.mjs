@@ -3,7 +3,7 @@ import path from"node:path";
 import crypto from"node:crypto";
 import pg from"pg";
 
-const allServices=["jobs","candidates","applications","attribution","workflow","documents","communications","distribution","identity","organisations","audit","notifications","privacy","interviews","assessments","offers","talent-pools","careers-gateway","configuration","feature-flags","campaigns","webhooks","integrations","analytics","search","intelligence","scheduler","onboarding"];
+const allServices=["jobs","candidates","applications","attribution","workflow","documents","communications","distribution","identity","organisations","audit","notifications","privacy","interviews","assessments","offers","talent-pools","careers-gateway","configuration","feature-flags","campaigns","webhooks","integrations","analytics","search","intelligence","scheduler","onboarding","platform"];
 const requested=process.argv.slice(2),services=requested.length?requested:allServices;
 const base=process.env.DATABASE_BASE_URL||"postgresql://postgres:postgres@localhost:5433";
 
