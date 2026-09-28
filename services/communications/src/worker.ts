@@ -37,7 +37,7 @@ const CANDIDATES = process.env.CANDIDATES_URL || "http://localhost:4102";
 const JOBS = process.env.JOBS_URL || "http://localhost:4101";
 
 async function hydrate(tenantId:string,correlationId:string,applicationId:string){
-  const headers=serviceAuthHeaders({"x-tenant-id":tenantId,"x-correlation-id":correlationId});
+  const headers=serviceAuthHeaders({"x-tenant-id":tenantId,"x-correlation-id":correlationId,"x-organisation-ids":"*"});
   const aRes=await fetch(APPLICATIONS+"/v1/applications/"+applicationId,{headers});
   if(!aRes.ok)throw new Error("application hydration failed: "+aRes.status);
   const application:any=await aRes.json();
