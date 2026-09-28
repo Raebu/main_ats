@@ -67,8 +67,8 @@ async function handle(subject:string){
           await sendMessage(e,null,alert.email,"New Raeburn opportunity — "+(p.title||"Careers"),"A new opportunity matches your Raeburn job alert: "+(p.title||"Open role")+(p.location?" · "+p.location:"")+". Explore the role at "+careers+"/careers/jobs/"+p.slug+".\n\nStop this alert: "+careers+"/careers/job-alerts/unsubscribe?token="+encodeURIComponent(alert.manageToken||""));
         }
       }else if(subject==="application.created.v1"){
-        applicationId=p.id;const recipient=p.candidate?.email;
-        if(recipient)await sendMessage(e,applicationId,recipient,"Application received — "+(p.job?.title||"Raeburn opportunity"),"Thank you for applying for "+(p.job?.title||"this opportunity")+" at The Raeburn Group. We have received your application and will keep you updated.");
+        applicationId=p.id;const h=await hydrate(e.tenantId,e.correlationId,applicationId),recipient=h?.candidate?.email;
+        if(recipient)await sendMessage(e,applicationId,recipient,"Application received — "+(h?.job?.title||"Raeburn opportunity"),"Thank you for applying for "+(h?.job?.title||"this opportunity")+" at The Raeburn Group. We have received your application and will keep you updated.");
       }else if(subject==="interview.feedback_reminder.v1"&&p.reviewerId&&String(p.reviewerId).includes("@")){
         await sendMessage(e,p.applicationId,String(p.reviewerId),"Interview feedback reminder — Raeburn Talent","Your independent interview scorecard is due. Please submit your evidence before panel feedback is opened.");
       }else if(["scheduler.candidate_keep_in_touch.due.v1","scheduler.candidate_reengagement.due.v1","scheduler.candidate_application_anniversary.due.v1"].includes(subject)){
