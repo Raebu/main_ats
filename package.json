@@ -48,7 +48,8 @@
     "test:failure": "node scripts/failure-injection.mjs",
     "test:contracts": "vitest run packages/events/src/registry.test.ts packages/policy/src/index.test.ts",
     "stage10:validate": "npm run migrate:validate && npm run test:contracts && npm run typecheck",
-    "test:security-integration": "node scripts/ci-security-isolation.mjs"
+    "test:security-integration": "node scripts/ci-security-isolation.mjs",
+    "stage10:completion-gate": "node scripts/verify-stage10-completion.mjs"
   },
   "dependencies": {
     "@prisma/client": "6.12.0",
