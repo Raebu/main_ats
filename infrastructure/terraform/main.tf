@@ -1,32 +1,41 @@
 locals {
   prefix = "raeburn-talent-${var.environment}"
-  tags = ["raeburn-talent","env:${var.environment}","owner:${var.owner}","cost-centre:${var.cost_centre}"]
+  tags = [
+    "raeburn-talent",
+    "env:${var.environment}",
+    "owner:${var.owner}",
+    "cost-centre:${var.cost_centre}",
+  ]
 }
+
 resource "digitalocean_vpc" "platform" {
-  name = "${local.prefix}-vpc"
-  region = var.region
+  name     = "${local.prefix}-vpc"
+  region   = var.region
   ip_range = var.environment == "production" ? "10.41.0.0/20" : "10.42.0.0/20"
 }
+
 resource "digitalocean_database_cluster" "postgres" {
-  name = "${local.prefix}-postgres"
-  engine = "pg"
-  version = "17"
-  size = var.postgres_size
-  region = var.region
-  node_count = var.postgres_nodes
+  name                 = "${local.prefix}-postgres"
+  engine               = "pg"
+  version              = "17"
+  size                 = var.postgres_size
+  region               = var.region
+  node_count           = var.postgres_nodes
   private_network_uuid = digitalocean_vpc.platform.id
-  tags = local.tags
+  tags                 = local.tags
 }
+
 resource "digitalocean_droplet" "runtime" {
-  name = "${local.prefix}-runtime"
-  image = "ubuntu-24-04-x64"
-  region = var.region
-  size = var.runtime_size
-  vpc_uuid = digitalocean_vpc.platform.id
-  ssh_keys = var.ssh_key_fingerprints
+  name       = "${local.prefix}-runtime"
+  image      = "ubuntu-24-04-x64"
+  region     = var.region
+  size       = var.runtime_size
+  vpc_uuid   = digitalocean_vpc.platform.id
+  ssh_keys   = var.ssh_key_fingerprints
   monitoring = true
-  backups = true
-  tags = local.tags
+  backups    = true
+  tags       = local.tags
+
   user_data = <<-EOF
     #!/bin/bash
     set -eux
@@ -36,16 +45,18 @@ resource "digitalocean_droplet" "runtime" {
     mkdir -p /opt/raeburn-talent
   EOF
 }
+
 resource "digitalocean_droplet" "nats" {
-  name = "${local.prefix}-nats"
-  image = "ubuntu-24-04-x64"
-  region = var.region
-  size = var.nats_size
-  vpc_uuid = digitalocean_vpc.platform.id
-  ssh_keys = var.ssh_key_fingerprints
+  name       = "${local.prefix}-nats"
+  image      = "ubuntu-24-04-x64"
+  region     = var.region
+  size       = var.nats_size
+  vpc_uuid   = digitalocean_vpc.platform.id
+  ssh_keys   = var.ssh_key_fingerprints
   monitoring = true
-  backups = true
-  tags = local.tags
+  backups    = true
+  tags       = local.tags
+
   user_data = <<-EOF
     #!/bin/bash
     set -eux
@@ -55,70 +66,83 @@ resource "digitalocean_droplet" "nats" {
     docker run -d --restart=always --name nats -p 4222:4222 -p 8222:8222 -v /var/lib/nats:/data nats:2-alpine -js -sd /data -m 8222
   EOF
 }
+
 resource "digitalocean_firewall" "runtime" {
-  name = "${local.prefix}-runtime-fw"
+  name        = "${local.prefix}-runtime-fw"
   droplet_ids = [digitalocean_droplet.runtime.id]
+
   inbound_rule {
     protocol         = "tcp"
     port_range       = "22"
     source_addresses = [digitalocean_vpc.platform.ip_range]
   }
+
   inbound_rule {
     protocol         = "tcp"
     port_range       = "80"
     source_addresses = ["0.0.0.0/0", "::/0"]
   }
+
   inbound_rule {
     protocol         = "tcp"
     port_range       = "443"
     source_addresses = ["0.0.0.0/0", "::/0"]
   }
+
   outbound_rule {
     protocol              = "tcp"
     port_range            = "1-65535"
     destination_addresses = ["0.0.0.0/0", "::/0"]
   }
+
   outbound_rule {
     protocol              = "udp"
     port_range            = "1-65535"
     destination_addresses = ["0.0.0.0/0", "::/0"]
   }
 }
+
 resource "digitalocean_firewall" "nats" {
-  name = "${local.prefix}-nats-fw"
+  name        = "${local.prefix}-nats-fw"
   droplet_ids = [digitalocean_droplet.nats.id]
+
   inbound_rule {
     protocol         = "tcp"
     port_range       = "4222"
     source_addresses = [digitalocean_vpc.platform.ip_range]
   }
+
   inbound_rule {
     protocol         = "tcp"
     port_range       = "8222"
     source_addresses = [digitalocean_vpc.platform.ip_range]
   }
+
   outbound_rule {
     protocol              = "tcp"
     port_range            = "1-65535"
     destination_addresses = ["0.0.0.0/0", "::/0"]
   }
 }
+
 resource "cloudflare_r2_bucket" "documents" {
   account_id = var.cloudflare_account_id
-  name = "${local.prefix}-documents"
-  location = "WEUR"
+  name       = "${local.prefix}-documents"
+  location   = "WEUR"
 }
+
 resource "cloudflare_record" "api" {
   zone_id = var.cloudflare_zone_id
-  name = var.environment == "production" ? "api.talent" : "api.staging.talent"
-  type = "A"
-  value = digitalocean_droplet.runtime.ipv4_address
+  name    = var.environment == "production" ? "api.talent" : "api.staging.talent"
+  type    = "A"
+  value   = digitalocean_droplet.runtime.ipv4_address
   proxied = true
 }
+
 resource "cloudflare_record" "hooks" {
   zone_id = var.cloudflare_zone_id
-  name = var.environment == "production" ? "hooks.talent" : "hooks.staging.talent"
-  type = "A"
-  value = digitalocean_droplet.runtime.ipv4_address
+  name    = var.environment == "production" ? "hooks.talent" : "hooks.staging.talent"
+  type    = "A"
+  value   = digitalocean_droplet.runtime.ipv4_address
   proxied = true
 }
