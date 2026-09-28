@@ -90,7 +90,7 @@ test.describe("Talent Admin recruiter journey",()=>{
 
   test("recruiter can authenticate and reach operational application surfaces",async({page})=>{
     await page.goto("/login");
-    await page.getByPlaceholder("Email").fill(process.env.E2E_ADMIN_EMAIL||"careers@theraeburngroup.com");
+    await page.getByRole("textbox",{name:"Email",exact:true}).fill(process.env.E2E_ADMIN_EMAIL||"careers@theraeburngroup.com");
     await page.getByPlaceholder("Password").fill(process.env.E2E_ADMIN_PASSWORD||"change-me-local");
     await page.getByRole("button",{name:"Sign in"}).click();
 
