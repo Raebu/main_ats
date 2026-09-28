@@ -10,7 +10,7 @@ create table if not exists report_runs(
 );
 create table if not exists data_quality_runs(
  id text primary key,tenant_id text not null,status text not null,summary jsonb not null default '{}',
- issues jsonb not null default '[]',created_at timestamptz not null default now(),completed_at timestamptz
+ issues jsonb not null default '[]',remediation jsonb not null default '{}',created_at timestamptz not null default now(),completed_at timestamptz
 );
 
 alter table report_definitions add column if not exists allowed_roles jsonb not null default '[]';
@@ -37,3 +37,5 @@ create table if not exists bi_connectors(
 );
 
 alter table report_exports add column if not exists schedule_id text;
+
+alter table data_quality_runs add column if not exists remediation jsonb not null default '{}';
