@@ -27,6 +27,8 @@ jobs:
           token: ${{ secrets.DIGITALOCEAN_TOKEN }}
       - run: npm ci
       - name: Discover managed PostgreSQL admin connection
+        env:
+          DIGITALOCEAN_TOKEN: ${{ secrets.DIGITALOCEAN_TOKEN }}
         run: |
           set -euo pipefail
           cluster="raeburn-talent-${{ inputs.environment }}-postgres"
@@ -35,7 +37,7 @@ jobs:
           uri=$(doctl databases connection "$id" --format URI --no-header)
           test -n "$uri"
           ca_file="$RUNNER_TEMP/digitalocean-postgres-ca.crt"
-          doctl databases get-ca "$id" --format Certificate --no-header > "$ca_file"
+          curl -fsS             -H "Authorization: Bearer ${DIGITALOCEAN_TOKEN}"             "https://api.digitalocean.com/v2/databases/$id/ca"             | jq -r '.ca.certificate'             | base64 --decode > "$ca_file"
           grep -q "BEGIN CERTIFICATE" "$ca_file"
           echo "::add-mask::$uri"
           echo "DATABASE_ADMIN_URL=$uri" >> "$GITHUB_ENV"
