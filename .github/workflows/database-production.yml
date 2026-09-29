@@ -34,8 +34,12 @@ jobs:
           test -n "$id"
           uri=$(doctl databases connection "$id" --format URI --no-header)
           test -n "$uri"
+          ca_file="$RUNNER_TEMP/digitalocean-postgres-ca.crt"
+          doctl databases get-ca "$id" --format Certificate --no-header > "$ca_file"
+          grep -q "BEGIN CERTIFICATE" "$ca_file"
           echo "::add-mask::$uri"
           echo "DATABASE_ADMIN_URL=$uri" >> "$GITHUB_ENV"
+          echo "NODE_EXTRA_CA_CERTS=$ca_file" >> "$GITHUB_ENV"
       - name: Create service databases and runtime role
         env:
           DATABASE_RUNTIME_PASSWORD: ${{ secrets.DATABASE_RUNTIME_PASSWORD }}
