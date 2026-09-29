@@ -216,12 +216,6 @@ resource "cloudflare_ruleset" "talent_waf" {
   }
 }
 
-resource "digitalocean_project" "talent" {
-  name        = local.prefix
-  description = var.project_description
-  purpose     = "Operational / Developer tooling"
-  environment = var.environment == "production" ? "Production" : "Staging"
-}
 
 resource "digitalocean_monitor_alert" "runtime_cpu" {
   count       = var.enable_provider_email_alerts && length(var.alert_emails) > 0 ? 1 : 0
