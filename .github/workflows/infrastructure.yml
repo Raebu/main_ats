@@ -47,6 +47,10 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || vars.IAC_PLAN_ENABLED == 'true'
     environment: ${{ github.event.inputs.environment || 'staging' }}
     runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
+      AWS_EC2_METADATA_DISABLED: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: opentofu/setup-opentofu@v1
@@ -99,6 +103,10 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.apply == true
     environment: ${{ inputs.environment }}
     runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
+      AWS_EC2_METADATA_DISABLED: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: opentofu/setup-opentofu@v1
@@ -145,6 +153,10 @@ jobs:
     if: github.event_name == 'schedule' && vars.TF_DRIFT_ENABLED == 'true'
     environment: production
     runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
+      AWS_EC2_METADATA_DISABLED: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: opentofu/setup-opentofu@v1
