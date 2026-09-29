@@ -166,7 +166,7 @@ resource "cloudflare_record" "api" {
   zone_id = var.cloudflare_zone_id
   name    = var.environment == "production" ? "api.talent" : "api.staging.talent"
   type    = "A"
-  value   = digitalocean_droplet.runtime.ipv4_address
+  content = digitalocean_droplet.runtime.ipv4_address
   proxied = true
 }
 
@@ -174,7 +174,7 @@ resource "cloudflare_record" "hooks" {
   zone_id = var.cloudflare_zone_id
   name    = var.environment == "production" ? "hooks.talent" : "hooks.staging.talent"
   type    = "A"
-  value   = digitalocean_droplet.runtime.ipv4_address
+  content = digitalocean_droplet.runtime.ipv4_address
   proxied = true
 }
 
@@ -182,7 +182,7 @@ resource "cloudflare_record" "talent_admin" {
   zone_id = var.cloudflare_zone_id
   name    = var.environment == "production" ? "talent" : "talent.staging"
   type    = "CNAME"
-  value   = "cname.vercel-dns.com"
+  content = "cname.vercel-dns.com"
   proxied = false
 }
 
@@ -190,7 +190,7 @@ resource "cloudflare_record" "careers" {
   zone_id = var.cloudflare_zone_id
   name    = var.environment == "production" ? "careers" : "careers.staging"
   type    = "CNAME"
-  value   = "cname.vercel-dns.com"
+  content = "cname.vercel-dns.com"
   proxied = false
 }
 
@@ -221,15 +221,10 @@ resource "digitalocean_project" "talent" {
   description = var.project_description
   purpose     = "Operational / Developer tooling"
   environment = var.environment == "production" ? "Production" : "Staging"
-  resources = [
-    digitalocean_droplet.runtime.urn,
-    digitalocean_droplet.nats.urn,
-    digitalocean_database_cluster.postgres.urn,
-  ]
 }
 
 resource "digitalocean_monitor_alert" "runtime_cpu" {
-  count       = length(var.alert_emails) > 0 ? 1 : 0
+  count       = var.enable_provider_email_alerts && length(var.alert_emails) > 0 ? 1 : 0
   type        = "v1/insights/droplet/cpu"
   description = "${local.prefix} runtime CPU"
   compare     = "GreaterThan"
@@ -244,7 +239,7 @@ resource "digitalocean_monitor_alert" "runtime_cpu" {
 }
 
 resource "digitalocean_monitor_alert" "nats_cpu" {
-  count       = length(var.alert_emails) > 0 ? 1 : 0
+  count       = var.enable_provider_email_alerts && length(var.alert_emails) > 0 ? 1 : 0
   type        = "v1/insights/droplet/cpu"
   description = "${local.prefix} NATS CPU"
   compare     = "GreaterThan"
