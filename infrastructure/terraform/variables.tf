@@ -88,3 +88,10 @@ variable "alert_window" {
   type    = string
   default = "5m"
 }
+
+
+variable "enable_provider_email_alerts" {
+  type        = bool
+  default     = false
+  description = "Create DigitalOcean email alert policies only after the configured alert addresses are verified in DigitalOcean."
+}
