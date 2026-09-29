@@ -1,0 +1,107 @@
+name: raeburn-talent
+x-unit: &unit
+  image: ${UNIT_IMAGE_REF}
+  restart: unless-stopped
+  env_file: .env.production
+  networks: [talent]
+  stop_grace_period: 30s
+
+services:
+  edge-api:
+    <<: *unit
+    environment:
+      UNIT_NAME: edge-api
+      JOBS_URL: http://recruitment-core:4101
+      CANDIDATES_URL: http://recruitment-core:4102
+      APPLICATIONS_URL: http://recruitment-core:4103
+      WORKFLOW_URL: http://recruitment-core:4105
+      ORGANISATIONS_URL: http://recruitment-core:4110
+      ATTRIBUTION_URL: http://intelligence-data:4104
+      DOCUMENTS_URL: http://experience:4106
+      COMMUNICATIONS_URL: http://experience:4107
+      DISTRIBUTION_URL: http://experience:4108
+      NOTIFICATIONS_URL: http://experience:4112
+      CAREERS_GATEWAY_URL: http://experience:4118
+      CAMPAIGNS_URL: http://experience:4121
+      IDENTITY_URL: http://platform-control:4109
+      AUDIT_URL: http://platform-control:4111
+      PRIVACY_URL: http://platform-control:4113
+      CONFIGURATION_URL: http://platform-control:4119
+      FEATURE_FLAGS_URL: http://platform-control:4120
+      WEBHOOKS_URL: http://platform-control:4122
+      INTEGRATIONS_URL: http://platform-control:4123
+      PLATFORM_URL: http://platform-control:4129
+      INTERVIEWS_URL: http://selection:4114
+      ASSESSMENTS_URL: http://selection:4115
+      OFFERS_URL: http://selection:4116
+      TALENT_POOLS_URL: http://selection:4117
+      ONBOARDING_URL: http://selection:4128
+      ANALYTICS_URL: http://intelligence-data:4124
+      SEARCH_URL: http://intelligence-data:4125
+      INTELLIGENCE_URL: http://intelligence-data:4126
+      SCHEDULER_URL: http://intelligence-data:4127
+
+  recruitment-core:
+    <<: *unit
+    environment:
+      UNIT_NAME: recruitment-core
+
+  selection:
+    <<: *unit
+    environment:
+      UNIT_NAME: selection
+      APPLICATIONS_URL: http://recruitment-core:4103
+      CANDIDATES_URL: http://recruitment-core:4102
+      JOBS_URL: http://recruitment-core:4101
+
+  experience:
+    <<: *unit
+    environment:
+      UNIT_NAME: experience
+      APPLICATIONS_URL: http://recruitment-core:4103
+      CANDIDATES_URL: http://recruitment-core:4102
+      JOBS_URL: http://recruitment-core:4101
+      ORGANISATIONS_URL: http://recruitment-core:4110
+      MALWARE_SCANNER_URL: http://malware-scanner:4130/scan
+
+  platform-control:
+    <<: *unit
+    environment:
+      UNIT_NAME: platform-control
+
+  intelligence-data:
+    <<: *unit
+    environment:
+      UNIT_NAME: intelligence-data
+      APPLICATIONS_URL: http://recruitment-core:4103
+      CANDIDATES_URL: http://recruitment-core:4102
+      JOBS_URL: http://recruitment-core:4101
+
+  malware-scanner:
+    image: ${SCANNER_IMAGE_REF}
+    restart: unless-stopped
+    env_file: .env.production
+    networks: [talent]
+    stop_grace_period: 30s
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    env_file: .env.production
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [talent]
+    depends_on: [edge-api]
+
+networks:
+  talent:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

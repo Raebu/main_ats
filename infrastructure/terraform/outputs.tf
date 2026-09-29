@@ -30,3 +30,11 @@ output "hooks_hostname" {
 output "project_id" {
   value = digitalocean_project.talent.id
 }
+
+output "talent_admin_hostname" {
+  value = cloudflare_record.talent_admin.hostname
+}
+
+output "careers_hostname" {
+  value = cloudflare_record.careers.hostname
+}

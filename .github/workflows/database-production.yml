@@ -1,0 +1,48 @@
+name: Production Database
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Database environment
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    environment: ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+      - run: npm ci
+      - name: Discover managed PostgreSQL admin connection
+        run: |
+          set -euo pipefail
+          cluster="raeburn-talent-${{ inputs.environment }}-postgres"
+          id=$(doctl databases list --format ID,Name --no-header | awk -v n="$cluster" '$2==n{print $1}')
+          test -n "$id"
+          uri=$(doctl databases connection "$id" --format URI --no-header)
+          test -n "$uri"
+          echo "::add-mask::$uri"
+          echo "DATABASE_ADMIN_URL=$uri" >> "$GITHUB_ENV"
+      - name: Create service databases and runtime role
+        env:
+          DATABASE_RUNTIME_PASSWORD: ${{ secrets.DATABASE_RUNTIME_PASSWORD }}
+        run: node scripts/provision-production-databases.mjs prepare
+      - name: Apply immutable service migrations
+        run: node scripts/migrate-services.mjs
+      - name: Grant runtime permissions
+        env:
+          DATABASE_RUNTIME_PASSWORD: ${{ secrets.DATABASE_RUNTIME_PASSWORD }}
+        run: node scripts/provision-production-databases.mjs grant

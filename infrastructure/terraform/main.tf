@@ -42,7 +42,7 @@ resource "digitalocean_droplet" "runtime" {
     #!/bin/bash
     set -eux
     apt-get update
-    apt-get install -y docker.io ca-certificates curl
+    apt-get install -y docker.io docker-compose-v2 ca-certificates curl
     systemctl enable --now docker
     mkdir -p /opt/raeburn-talent
   EOF
@@ -94,13 +94,42 @@ resource "digitalocean_firewall" "runtime" {
   outbound_rule {
     protocol              = "tcp"
     port_range            = "1-65535"
-    destination_addresses = var.internet_egress_cidrs
+    destination_addresses = [digitalocean_vpc.platform.ip_range]
   }
 
+  # trivy:ignore:DIG-0003 -- internet destination is required; egress is restricted to this single protocol/port only.
+  outbound_rule {
+    protocol              = "tcp"
+    port_range            = "53"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+
+  # trivy:ignore:DIG-0003 -- internet destination is required; egress is restricted to this single protocol/port only.
   outbound_rule {
     protocol              = "udp"
-    port_range            = "1-65535"
-    destination_addresses = var.internet_egress_cidrs
+    port_range            = "53"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+
+  # trivy:ignore:DIG-0003 -- internet destination is required; egress is restricted to this single protocol/port only.
+  outbound_rule {
+    protocol              = "tcp"
+    port_range            = "80"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+
+  # trivy:ignore:DIG-0003 -- internet destination is required; egress is restricted to this single protocol/port only.
+  outbound_rule {
+    protocol              = "tcp"
+    port_range            = "443"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+
+  # trivy:ignore:DIG-0003 -- internet destination is required; egress is restricted to this single protocol/port only.
+  outbound_rule {
+    protocol              = "tcp"
+    port_range            = "587"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
   }
 }
 
@@ -123,7 +152,7 @@ resource "digitalocean_firewall" "nats" {
   outbound_rule {
     protocol              = "tcp"
     port_range            = "1-65535"
-    destination_addresses = var.internet_egress_cidrs
+    destination_addresses = [digitalocean_vpc.platform.ip_range]
   }
 }
 
@@ -147,6 +176,22 @@ resource "cloudflare_record" "hooks" {
   type    = "A"
   value   = digitalocean_droplet.runtime.ipv4_address
   proxied = true
+}
+
+resource "cloudflare_record" "talent_admin" {
+  zone_id = var.cloudflare_zone_id
+  name    = var.environment == "production" ? "talent" : "talent.staging"
+  type    = "CNAME"
+  value   = "cname.vercel-dns.com"
+  proxied = false
+}
+
+resource "cloudflare_record" "careers" {
+  zone_id = var.cloudflare_zone_id
+  name    = var.environment == "production" ? "careers" : "careers.staging"
+  type    = "CNAME"
+  value   = "cname.vercel-dns.com"
+  proxied = false
 }
 
 resource "cloudflare_ruleset" "talent_waf" {

@@ -5,11 +5,11 @@ import pg from"pg";
 
 const allServices=["jobs","candidates","applications","attribution","workflow","documents","communications","distribution","identity","organisations","audit","notifications","privacy","interviews","assessments","offers","talent-pools","careers-gateway","configuration","feature-flags","campaigns","webhooks","integrations","analytics","search","intelligence","scheduler","onboarding","platform"];
 const requested=process.argv.slice(2),services=requested.length?requested:allServices;
-const base=process.env.DATABASE_BASE_URL||"postgresql://postgres:postgres@localhost:5433";
+const base=process.env.DATABASE_BASE_URL||"postgresql://postgres:postgres@localhost:5433",adminUrl=process.env.DATABASE_ADMIN_URL;
 
 for(const service of services){
   const db=service.replace(/-/g,"_"),envName=service.replace(/-/g,"_").toUpperCase()+"_DATABASE_URL";
-  const url=process.env[envName]||base+"/"+db,client=new pg.Client({connectionString:url});
+  const url=process.env[envName]||(adminUrl?(()=>{const u=new URL(adminUrl);u.pathname="/"+db;return u.toString();})():base+"/"+db),client=new pg.Client({connectionString:url});
   await client.connect();
   const lockKey="raeburn-migrations:"+service;
   try{

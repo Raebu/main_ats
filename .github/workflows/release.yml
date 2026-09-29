@@ -96,14 +96,57 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.qualify.outputs.sha }}
+      - uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+      - name: Discover staging runtime addresses
+        env:
+          DATABASE_RUNTIME_PASSWORD: ${{ secrets.DATABASE_RUNTIME_PASSWORD }}
+        run: |
+          set -euo pipefail
+          runtime=$(doctl compute droplet list --format Name,PublicIPv4,PrivateIPv4 --no-header | awk '$1=="raeburn-talent-staging-runtime"{print $2}')
+          nats=$(doctl compute droplet list --format Name,PublicIPv4,PrivateIPv4 --no-header | awk '$1=="raeburn-talent-staging-nats"{print $3}')
+          dbid=$(doctl databases list --format ID,Name --no-header | awk '$2=="raeburn-talent-staging-postgres"{print $1}')
+          read dbhost dbport <<< "$(doctl databases connection "$dbid" --private --format Host,Port --no-header)"
+          test -n "$runtime" && test -n "$nats" && test -n "$dbhost" && test -n "$dbport"
+          encoded=$(python3 - <<'PY'
+import os, urllib.parse
+print(urllib.parse.quote(os.environ["DATABASE_RUNTIME_PASSWORD"], safe=""))
+PY
+          )
+          dburl="postgresql://talent_runtime:${encoded}@${dbhost}:${dbport}?sslmode=require"
+          echo "::add-mask::$dburl"
+          echo "DEPLOY_HOST=$runtime" >> "$GITHUB_ENV"
+          echo "DATABASE_BASE_URL_OVERRIDE=$dburl" >> "$GITHUB_ENV"
+          echo "NATS_URL_OVERRIDE=nats://$nats:4222" >> "$GITHUB_ENV"
+      - name: Open deploy-only SSH access
+        run: |
+          set -euo pipefail
+          ip=$(curl -fsS https://api.ipify.org)
+          fw=$(doctl compute firewall list --format ID,Name --no-header | awk '$2=="raeburn-talent-staging-runtime-fw"{print $1}')
+          test -n "$fw"
+          doctl compute firewall add-rules "$fw" --inbound-rules "protocol:tcp,ports:22,address:$ip/32"
       - name: Deploy immutable release to staging
         env:
-          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
-          DEPLOY_WEBHOOK_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
-          RELEASE_SHA: ${{ needs.qualify.outputs.sha }}
+          DEPLOY_HOST: ${{ env.DEPLOY_HOST }}
+          DEPLOY_USER: root
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DATABASE_BASE_URL_OVERRIDE: ${{ env.DATABASE_BASE_URL_OVERRIDE }}
+          NATS_URL_OVERRIDE: ${{ env.NATS_URL_OVERRIDE }}
+          RUNTIME_ENV_FILE: ${{ secrets.RUNTIME_ENV_FILE }}
           UNIT_IMAGE_REF: ${{ needs.image.outputs.unit_image_ref }}
           SCANNER_IMAGE_REF: ${{ needs.image.outputs.scanner_image_ref }}
-        run: node scripts/deploy-release.mjs staging
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/deploy-ssh.sh
+      - name: Close deploy-only SSH access
+        if: always()
+        run: |
+          set +e
+          ip=$(curl -fsS https://api.ipify.org)
+          fw=$(doctl compute firewall list --format ID,Name --no-header | awk '$2=="raeburn-talent-staging-runtime-fw"{print $1}')
+          [ -n "$fw" ] && doctl compute firewall remove-rules "$fw" --inbound-rules "protocol:tcp,ports:22,address:$ip/32"
+          exit 0
       - name: Staging smoke test
         env:
           SMOKE_BASE_URL: ${{ vars.BASE_URL }}
@@ -124,15 +167,49 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.qualify.outputs.sha }}
+      - uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+      - name: Discover production runtime addresses
+        env:
+          DATABASE_RUNTIME_PASSWORD: ${{ secrets.DATABASE_RUNTIME_PASSWORD }}
+        run: |
+          set -euo pipefail
+          runtime=$(doctl compute droplet list --format Name,PublicIPv4,PrivateIPv4 --no-header | awk '$1=="raeburn-talent-production-runtime"{print $2}')
+          nats=$(doctl compute droplet list --format Name,PublicIPv4,PrivateIPv4 --no-header | awk '$1=="raeburn-talent-production-nats"{print $3}')
+          dbid=$(doctl databases list --format ID,Name --no-header | awk '$2=="raeburn-talent-production-postgres"{print $1}')
+          read dbhost dbport <<< "$(doctl databases connection "$dbid" --private --format Host,Port --no-header)"
+          test -n "$runtime" && test -n "$nats" && test -n "$dbhost" && test -n "$dbport"
+          encoded=$(python3 - <<'PY'
+import os, urllib.parse
+print(urllib.parse.quote(os.environ["DATABASE_RUNTIME_PASSWORD"], safe=""))
+PY
+          )
+          dburl="postgresql://talent_runtime:${encoded}@${dbhost}:${dbport}?sslmode=require"
+          echo "::add-mask::$dburl"
+          echo "DEPLOY_HOST=$runtime" >> "$GITHUB_ENV"
+          echo "DATABASE_BASE_URL_OVERRIDE=$dburl" >> "$GITHUB_ENV"
+          echo "NATS_URL_OVERRIDE=nats://$nats:4222" >> "$GITHUB_ENV"
+      - name: Open deploy-only SSH access
+        run: |
+          set -euo pipefail
+          ip=$(curl -fsS https://api.ipify.org)
+          fw=$(doctl compute firewall list --format ID,Name --no-header | awk '$2=="raeburn-talent-production-runtime-fw"{print $1}')
+          test -n "$fw"
+          doctl compute firewall add-rules "$fw" --inbound-rules "protocol:tcp,ports:22,address:$ip/32"
       - name: Progressive production deployment
         env:
-          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
-          DEPLOY_WEBHOOK_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
-          RELEASE_SHA: ${{ needs.qualify.outputs.sha }}
+          DEPLOY_HOST: ${{ env.DEPLOY_HOST }}
+          DEPLOY_USER: root
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DATABASE_BASE_URL_OVERRIDE: ${{ env.DATABASE_BASE_URL_OVERRIDE }}
+          NATS_URL_OVERRIDE: ${{ env.NATS_URL_OVERRIDE }}
+          RUNTIME_ENV_FILE: ${{ secrets.RUNTIME_ENV_FILE }}
           UNIT_IMAGE_REF: ${{ needs.image.outputs.unit_image_ref }}
           SCANNER_IMAGE_REF: ${{ needs.image.outputs.scanner_image_ref }}
-          DEPLOY_STRATEGY: blue-green
-        run: node scripts/deploy-release.mjs production
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/deploy-ssh.sh
       - name: Production smoke test
         id: smoke
         continue-on-error: true
@@ -142,13 +219,26 @@ jobs:
       - name: Automatic rollback
         if: steps.smoke.outcome == 'failure'
         env:
-          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
-          DEPLOY_WEBHOOK_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
-          RELEASE_SHA: ${{ needs.qualify.outputs.sha }}
+          DEPLOY_HOST: ${{ env.DEPLOY_HOST }}
+          DEPLOY_USER: root
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DATABASE_BASE_URL_OVERRIDE: ${{ env.DATABASE_BASE_URL_OVERRIDE }}
+          NATS_URL_OVERRIDE: ${{ env.NATS_URL_OVERRIDE }}
+          RUNTIME_ENV_FILE: ${{ secrets.RUNTIME_ENV_FILE }}
           UNIT_IMAGE_REF: ${{ needs.image.outputs.unit_image_ref }}
           SCANNER_IMAGE_REF: ${{ needs.image.outputs.scanner_image_ref }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ROLLBACK: "true"
-        run: node scripts/deploy-release.mjs production
+        run: bash scripts/deploy-ssh.sh
+      - name: Close deploy-only SSH access
+        if: always()
+        run: |
+          set +e
+          ip=$(curl -fsS https://api.ipify.org)
+          fw=$(doctl compute firewall list --format ID,Name --no-header | awk '$2=="raeburn-talent-production-runtime-fw"{print $1}')
+          [ -n "$fw" ] && doctl compute firewall remove-rules "$fw" --inbound-rules "protocol:tcp,ports:22,address:$ip/32"
+          exit 0
       - if: steps.smoke.outcome == 'failure'
         run: exit 1
 

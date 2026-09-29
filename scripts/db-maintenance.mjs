@@ -1,6 +1,6 @@
 import pg from "pg";
 
-const services=["jobs","candidates","applications","attribution","workflow","documents","communications","distribution","identity","organisations","audit","notifications","privacy","interviews","assessments","offers","talent-pools","careers-gateway","configuration","feature-flags","campaigns","webhooks","integrations","analytics","search","intelligence","scheduler","onboarding"];
+const services=["jobs","candidates","applications","attribution","workflow","documents","communications","distribution","identity","organisations","audit","notifications","privacy","interviews","assessments","offers","talent-pools","careers-gateway","configuration","feature-flags","campaigns","webhooks","integrations","analytics","search","intelligence","scheduler","onboarding","platform"];
 const requested=process.argv.slice(2),targets=requested.length?requested:services,base=process.env.DATABASE_BASE_URL||"postgresql://postgres:postgres@localhost:5433";
 for(const service of targets){
   const stem=service.replace(/-/g,"_"),env=stem.toUpperCase()+"_DATABASE_URL",url=process.env[env]||base+"/"+stem;

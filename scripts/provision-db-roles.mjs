@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import pg from "pg";
 
-const services=["jobs","candidates","applications","attribution","workflow","documents","communications","distribution","identity","organisations","audit","notifications","privacy","interviews","assessments","offers","talent-pools","careers-gateway","configuration","feature-flags","campaigns","webhooks","integrations","analytics","search","intelligence","scheduler","onboarding"];
+const services=["jobs","candidates","applications","attribution","workflow","documents","communications","distribution","identity","organisations","audit","notifications","privacy","interviews","assessments","offers","talent-pools","careers-gateway","configuration","feature-flags","campaigns","webhooks","integrations","analytics","search","intelligence","scheduler","onboarding","platform"];
 const adminUrl=process.env.DATABASE_ADMIN_URL;
 if(!adminUrl)throw new Error("DATABASE_ADMIN_URL is required");
 const ident=v=>'"'+String(v).replace(/"/g,'""')+'"',literal=v=>"'"+String(v).replace(/'/g,"''")+"'";
