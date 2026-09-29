@@ -27,9 +27,6 @@ output "hooks_hostname" {
   value = cloudflare_record.hooks.hostname
 }
 
-output "project_id" {
-  value = digitalocean_project.talent.id
-}
 
 output "talent_admin_hostname" {
   value = cloudflare_record.talent_admin.hostname
