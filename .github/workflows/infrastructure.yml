@@ -27,6 +27,8 @@ permissions:
 
 env:
   TOFU_VERSION: "1.10.6"
+  TF_STATE_BUCKET: "raeburn-talent-terraform-state"
+  TF_STATE_ENDPOINT: "https://e01b58b8d08d2c97284b2a46a13f3815.r2.cloudflarestorage.com"
 
 jobs:
   validate:
@@ -52,12 +54,25 @@ jobs:
           tofu_version: ${{ env.TOFU_VERSION }}
       - name: Configure encrypted remote state
         env:
-          TF_BACKEND_HCL: ${{ secrets.TF_BACKEND_HCL }}
           AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
+          TARGET_ENV: ${{ github.event.inputs.environment || 'staging' }}
         run: |
-          test -n "$TF_BACKEND_HCL"
-          printf '%s' "$TF_BACKEND_HCL" > /tmp/backend.hcl
+          set -euo pipefail
+          cat > /tmp/backend.hcl <<EOF
+          bucket = "$TF_STATE_BUCKET"
+          key    = "$TARGET_ENV/terraform.tfstate"
+          region = "auto"
+          skip_credentials_validation = true
+          skip_metadata_api_check     = true
+          skip_region_validation      = true
+          skip_requesting_account_id  = true
+          skip_s3_checksum            = true
+          use_path_style              = true
+          endpoints = {
+            s3 = "$TF_STATE_ENDPOINT"
+          }
+          EOF
           tofu -chdir=infrastructure/terraform init -input=false -backend-config=/tmp/backend.hcl
       - name: Plan infrastructure
         env:
@@ -91,12 +106,25 @@ jobs:
           tofu_version: ${{ env.TOFU_VERSION }}
       - name: Configure encrypted remote state
         env:
-          TF_BACKEND_HCL: ${{ secrets.TF_BACKEND_HCL }}
           AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
+          TARGET_ENV: ${{ inputs.environment }}
         run: |
-          test -n "$TF_BACKEND_HCL"
-          printf '%s' "$TF_BACKEND_HCL" > /tmp/backend.hcl
+          set -euo pipefail
+          cat > /tmp/backend.hcl <<EOF
+          bucket = "$TF_STATE_BUCKET"
+          key    = "$TARGET_ENV/terraform.tfstate"
+          region = "auto"
+          skip_credentials_validation = true
+          skip_metadata_api_check     = true
+          skip_region_validation      = true
+          skip_requesting_account_id  = true
+          skip_s3_checksum            = true
+          use_path_style              = true
+          endpoints = {
+            s3 = "$TF_STATE_ENDPOINT"
+          }
+          EOF
           tofu -chdir=infrastructure/terraform init -input=false -backend-config=/tmp/backend.hcl
       - name: Apply approved infrastructure
         env:
@@ -124,12 +152,24 @@ jobs:
           tofu_version: ${{ env.TOFU_VERSION }}
       - name: Configure remote backend
         env:
-          TF_BACKEND_HCL: ${{ secrets.TF_BACKEND_HCL }}
           AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
         run: |
-          test -n "$TF_BACKEND_HCL"
-          printf '%s' "$TF_BACKEND_HCL" > /tmp/backend.hcl
+          set -euo pipefail
+          cat > /tmp/backend.hcl <<EOF
+          bucket = "$TF_STATE_BUCKET"
+          key    = "production/terraform.tfstate"
+          region = "auto"
+          skip_credentials_validation = true
+          skip_metadata_api_check     = true
+          skip_region_validation      = true
+          skip_requesting_account_id  = true
+          skip_s3_checksum            = true
+          use_path_style              = true
+          endpoints = {
+            s3 = "$TF_STATE_ENDPOINT"
+          }
+          EOF
           tofu -chdir=infrastructure/terraform init -input=false -backend-config=/tmp/backend.hcl
       - name: Detect production drift
         env:
