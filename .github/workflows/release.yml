@@ -110,9 +110,9 @@ jobs:
           read dbhost dbport <<< "$(doctl databases connection "$dbid" --private --format Host,Port --no-header)"
           test -n "$runtime" && test -n "$nats" && test -n "$dbhost" && test -n "$dbport"
           encoded=$(python3 - <<'PY'
-import os, urllib.parse
-print(urllib.parse.quote(os.environ["DATABASE_RUNTIME_PASSWORD"], safe=""))
-PY
+          import os, urllib.parse
+          print(urllib.parse.quote(os.environ["DATABASE_RUNTIME_PASSWORD"], safe=""))
+          PY
           )
           dburl="postgresql://talent_runtime:${encoded}@${dbhost}:${dbport}?sslmode=require"
           echo "::add-mask::$dburl"
@@ -181,9 +181,9 @@ PY
           read dbhost dbport <<< "$(doctl databases connection "$dbid" --private --format Host,Port --no-header)"
           test -n "$runtime" && test -n "$nats" && test -n "$dbhost" && test -n "$dbport"
           encoded=$(python3 - <<'PY'
-import os, urllib.parse
-print(urllib.parse.quote(os.environ["DATABASE_RUNTIME_PASSWORD"], safe=""))
-PY
+          import os, urllib.parse
+          print(urllib.parse.quote(os.environ["DATABASE_RUNTIME_PASSWORD"], safe=""))
+          PY
           )
           dburl="postgresql://talent_runtime:${encoded}@${dbhost}:${dbport}?sslmode=require"
           echo "::add-mask::$dburl"
