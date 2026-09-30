@@ -9,6 +9,17 @@ const clusters = JSON.parse(run(["databases", "list", "--output", "json"]));
 const matches = clusters.filter(x => x.name === "raeburn-talent-staging-postgres");
 if (matches.length !== 1) throw new Error("Expected exactly one staging PostgreSQL cluster");
 const id = matches[0].id;
+
+console.log(JSON.stringify({
+  cluster: "staging",
+  status: matches[0].status,
+  engine: matches[0].engine,
+  version: matches[0].version,
+  connectionUriPresent: Boolean(matches[0].connection?.uri),
+  connectionPasswordPresent: Boolean(matches[0].connection?.password),
+  privateConnectionPasswordPresent: Boolean(matches[0].private_connection?.password),
+}));
+
 function shape(value, path = "$", depth = 0) {
   const type = value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
   const item = { path, type };
