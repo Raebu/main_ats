@@ -132,6 +132,7 @@ jobs:
           DEPLOY_HOST: ${{ env.DEPLOY_HOST }}
           DEPLOY_USER: root
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_FINGERPRINT: MD5:40:5c:b9:ce:22:0e:16:26:48:09:0e:71:09:69:77:a5
           DATABASE_BASE_URL_OVERRIDE: ${{ env.DATABASE_BASE_URL_OVERRIDE }}
           NATS_URL_OVERRIDE: ${{ env.NATS_URL_OVERRIDE }}
           RUNTIME_ENV_FILE: ${{ secrets.RUNTIME_ENV_FILE }}
@@ -203,6 +204,7 @@ jobs:
           DEPLOY_HOST: ${{ env.DEPLOY_HOST }}
           DEPLOY_USER: root
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_FINGERPRINT: MD5:40:5c:b9:ce:22:0e:16:26:48:09:0e:71:09:69:77:a5
           DATABASE_BASE_URL_OVERRIDE: ${{ env.DATABASE_BASE_URL_OVERRIDE }}
           NATS_URL_OVERRIDE: ${{ env.NATS_URL_OVERRIDE }}
           RUNTIME_ENV_FILE: ${{ secrets.RUNTIME_ENV_FILE }}
@@ -223,6 +225,7 @@ jobs:
           DEPLOY_HOST: ${{ env.DEPLOY_HOST }}
           DEPLOY_USER: root
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_FINGERPRINT: MD5:40:5c:b9:ce:22:0e:16:26:48:09:0e:71:09:69:77:a5
           DATABASE_BASE_URL_OVERRIDE: ${{ env.DATABASE_BASE_URL_OVERRIDE }}
           NATS_URL_OVERRIDE: ${{ env.NATS_URL_OVERRIDE }}
           RUNTIME_ENV_FILE: ${{ secrets.RUNTIME_ENV_FILE }}
