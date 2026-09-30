@@ -4,6 +4,9 @@ on:
     paths:
       - "infrastructure/terraform/**"
       - ".github/workflows/infrastructure.yml"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/database-production.yml"
+      - "scripts/fetch-digitalocean-ca.mjs"
   push:
     branches: [main]
   schedule:
