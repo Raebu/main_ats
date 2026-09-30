@@ -1,0 +1,32 @@
+name: Staging Database Diagnosis
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - ".github/workflows/staging-database-diagnosis.yml"
+      - "scripts/diagnose-staging-database.mjs"
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'fix-stage12-evidence'
+    environment: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+      - run: npm ci
+      - name: Inspect CA structure and verify read-only TLS connection
+        env:
+          DIGITALOCEAN_TOKEN: ${{ secrets.DIGITALOCEAN_TOKEN }}
+        run: node scripts/diagnose-staging-database.mjs

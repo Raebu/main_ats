@@ -4,6 +4,11 @@ on:
     paths:
       - "infrastructure/terraform/**"
       - ".github/workflows/infrastructure.yml"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/database-production.yml"
+      - ".github/workflows/staging-database-diagnosis.yml"
+      - "scripts/fetch-digitalocean-ca.mjs"
+      - "scripts/diagnose-staging-database.mjs"
   push:
     branches: [main]
   schedule:
