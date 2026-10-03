@@ -81,4 +81,4 @@ SCANNER_IMAGE_REF=%s
 ' "$UNIT_IMAGE_REF" "$SCANNER_IMAGE_REF" | "${SSH[@]}" 'cat > /opt/raeburn-talent/.release.current'
 fi
 
-"${SSH[@]}" "cd /opt/raeburn-talent && printf '%s\n' '${GHCR_TOKEN}' | docker login ghcr.io -u '${GHCR_USER}' --password-stdin && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml pull && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml up -d --remove-orphans && docker compose -f docker-compose.production.yml ps"
+"${SSH[@]}" "cd /opt/raeburn-talent && printf '%s\n' '${GHCR_TOKEN}' | docker login ghcr.io -u '${GHCR_USER}' --password-stdin && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml pull && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml up -d --remove-orphans && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml ps"
