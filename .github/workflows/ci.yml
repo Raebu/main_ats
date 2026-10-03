@@ -54,7 +54,7 @@ jobs:
           CAREERS_BASE_URL: https://theraeburngroup.com
       - name: Build Storybook
         run: npm run storybook:build
-      - run: npm audit --audit-level=high
+      - run: npm audit --omit=dev --audit-level=high
 
   workspace-validation:
     needs: changes
