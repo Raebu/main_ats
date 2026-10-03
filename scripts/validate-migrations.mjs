@@ -7,6 +7,7 @@ for(const dir of dirs){
   const migrationDir=path.join(root,dir.name,"migrations");let files=[];
   try{files=(await fs.readdir(migrationDir)).filter(x=>x.endsWith(".sql")).sort();}catch{errors.push(dir.name+": missing migrations directory");continue;}
   if(!files.length){errors.push(dir.name+": no immutable migrations");continue;}
+  if(!files.some(file=>/^000_/.test(file)))errors.push(dir.name+": missing immutable 000 core-schema prerequisite migration");
   const versions=new Set();
   for(const file of files){
     if(!/^\d{3,}_[a-z0-9_-]+\.sql$/i.test(file))errors.push(dir.name+"/"+file+": invalid migration filename");

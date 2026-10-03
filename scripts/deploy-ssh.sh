@@ -7,10 +7,56 @@ DEPLOY_USER="${DEPLOY_USER:-root}"
 : "${UNIT_IMAGE_REF:?UNIT_IMAGE_REF required}"
 : "${SCANNER_IMAGE_REF:?SCANNER_IMAGE_REF required}"
 
-install -m 600 /dev/null /tmp/raeburn-deploy-key
-printf '%s' "$DEPLOY_SSH_KEY" > /tmp/raeburn-deploy-key
-SSH=(ssh -o StrictHostKeyChecking=accept-new -i /tmp/raeburn-deploy-key "${DEPLOY_USER}@${DEPLOY_HOST}")
-SCP=(scp -o StrictHostKeyChecking=accept-new -i /tmp/raeburn-deploy-key)
+KEY_FILE=/tmp/raeburn-deploy-key
+PUB_FILE=/tmp/raeburn-deploy-key.pub
+ERR_FILE=/tmp/raeburn-deploy-key.err
+trap 'rm -f "$KEY_FILE" "$PUB_FILE" "$ERR_FILE"' EXIT
+
+python3 - "$KEY_FILE" <<'PY'
+import base64
+import os
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+raw = os.environ["DEPLOY_SSH_KEY"]
+raw = raw.replace("\r\n", "\n").replace("\r", "\n").strip()
+
+# GitHub secrets sometimes arrive with literal backslash-n sequences after copy/paste.
+if "\\n" in raw and "\n" not in raw:
+    raw = raw.replace("\\n", "\n")
+
+# Also tolerate a whole private key that was stored base64-encoded.
+if not raw.startswith("-----BEGIN "):
+    try:
+        decoded = base64.b64decode("".join(raw.split()), validate=True).decode("utf-8")
+        if decoded.lstrip().startswith("-----BEGIN "):
+            raw = decoded.strip()
+    except Exception:
+        pass
+
+if not raw.startswith("-----BEGIN OPENSSH PRIVATE KEY-----"):
+    raise SystemExit("DEPLOY_SSH_KEY does not contain an OpenSSH private key header")
+
+path.write_text(raw.rstrip("\n") + "\n", encoding="utf-8")
+path.chmod(0o600)
+PY
+
+if ! ssh-keygen -y -f "$KEY_FILE" > "$PUB_FILE" 2> "$ERR_FILE"; then
+  echo "DEPLOY_SSH_KEY could not be parsed by ssh-keygen after newline normalization."
+  echo "Re-save the complete OpenSSH private key in the GitHub environment secret DEPLOY_SSH_KEY."
+  exit 2
+fi
+
+fingerprint=$(ssh-keygen -E md5 -lf "$PUB_FILE" | awk '{print $2}')
+echo "Validated deploy SSH key fingerprint: $fingerprint"
+if [ -n "${DEPLOY_SSH_FINGERPRINT:-}" ] && [ "$fingerprint" != "$DEPLOY_SSH_FINGERPRINT" ]; then
+  echo "DEPLOY_SSH_KEY fingerprint does not match the deployment key installed on the DigitalOcean droplet."
+  exit 2
+fi
+
+SSH=(ssh -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -i "$KEY_FILE" "${DEPLOY_USER}@${DEPLOY_HOST}")
+SCP=(scp -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -i "$KEY_FILE")
 
 "${SSH[@]}" 'sudo mkdir -p /opt/raeburn-talent && sudo chown "$USER":"$USER" /opt/raeburn-talent'
 "${SCP[@]}" infrastructure/production/docker-compose.production.yml infrastructure/production/Caddyfile "${DEPLOY_USER}@${DEPLOY_HOST}:/opt/raeburn-talent/"
@@ -36,4 +82,3 @@ SCANNER_IMAGE_REF=%s
 fi
 
 "${SSH[@]}" "cd /opt/raeburn-talent && printf '%s\n' '${GHCR_TOKEN}' | docker login ghcr.io -u '${GHCR_USER}' --password-stdin && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml pull && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml up -d --remove-orphans && docker compose -f docker-compose.production.yml ps"
-rm -f /tmp/raeburn-deploy-key
