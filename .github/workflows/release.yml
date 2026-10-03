@@ -57,8 +57,10 @@ jobs:
     needs: qualify
     runs-on: ubuntu-latest
     outputs:
-      unit_image_ref: ${{ steps.immutable.outputs.unit_image_ref }}
-      scanner_image_ref: ${{ steps.immutable.outputs.scanner_image_ref }}
+      unit_image_ref: ${{ steps.deployrefs.outputs.unit_image_ref }}
+      scanner_image_ref: ${{ steps.deployrefs.outputs.scanner_image_ref }}
+      unit_image_digest: ${{ steps.immutable.outputs.unit_image_digest }}
+      scanner_image_digest: ${{ steps.immutable.outputs.scanner_image_digest }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -82,12 +84,28 @@ jobs:
           unit_digest=$(docker buildx imagetools inspect "$UNIT_IMAGE:${{ needs.qualify.outputs.sha }}" --format '{{.Manifest.Digest}}')
           scanner_digest=$(docker buildx imagetools inspect "$SCANNER_IMAGE:${{ needs.qualify.outputs.sha }}" --format '{{.Manifest.Digest}}')
           test -n "$unit_digest" && test -n "$scanner_digest"
-          echo "unit_image_ref=$UNIT_IMAGE@$unit_digest" >> "$GITHUB_OUTPUT"
-          echo "scanner_image_ref=$SCANNER_IMAGE@$scanner_digest" >> "$GITHUB_OUTPUT"
+          echo "unit_image_digest=$UNIT_IMAGE@$unit_digest" >> "$GITHUB_OUTPUT"
+          echo "scanner_image_digest=$SCANNER_IMAGE@$scanner_digest" >> "$GITHUB_OUTPUT"
+      - id: deployrefs
+        name: Resolve deployment tags
+        shell: bash
+        run: |
+          echo "unit_image_ref=$UNIT_IMAGE:${{ needs.qualify.outputs.sha }}" >> "$GITHUB_OUTPUT"
+          echo "scanner_image_ref=$SCANNER_IMAGE:${{ needs.qualify.outputs.sha }}" >> "$GITHUB_OUTPUT"
       - name: Sign immutable images
         run: |
-          cosign sign --yes "${{ steps.immutable.outputs.unit_image_ref }}"
-          cosign sign --yes "${{ steps.immutable.outputs.scanner_image_ref }}"
+          cosign sign --yes "${{ steps.immutable.outputs.unit_image_digest }}"
+          cosign sign --yes "${{ steps.immutable.outputs.scanner_image_digest }}"
+      - name: Export deployment images
+        run: |
+          docker save "$UNIT_IMAGE:${{ needs.qualify.outputs.sha }}" "$SCANNER_IMAGE:${{ needs.qualify.outputs.sha }}" | gzip -1 > release-images.tar.gz
+          test -s release-images.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-images-${{ needs.qualify.outputs.sha }}
+          path: release-images.tar.gz
+          if-no-files-found: error
+          retention-days: 1
 
   staging:
     needs: [qualify,image]
@@ -97,6 +115,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.qualify.outputs.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-images-${{ needs.qualify.outputs.sha }}
+          path: release-images
       - uses: digitalocean/action-doctl@v2
         with:
           token: ${{ secrets.DIGITALOCEAN_TOKEN }}
@@ -138,8 +160,7 @@ jobs:
           RUNTIME_ENV_FILE: ${{ secrets.RUNTIME_ENV_FILE }}
           UNIT_IMAGE_REF: ${{ needs.image.outputs.unit_image_ref }}
           SCANNER_IMAGE_REF: ${{ needs.image.outputs.scanner_image_ref }}
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_ARCHIVE: release-images/release-images.tar.gz
         run: bash scripts/deploy-ssh.sh
       - name: Close deploy-only SSH access
         if: always()
@@ -210,8 +231,7 @@ jobs:
           RUNTIME_ENV_FILE: ${{ secrets.RUNTIME_ENV_FILE }}
           UNIT_IMAGE_REF: ${{ needs.image.outputs.unit_image_ref }}
           SCANNER_IMAGE_REF: ${{ needs.image.outputs.scanner_image_ref }}
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_ARCHIVE: release-images/release-images.tar.gz
         run: bash scripts/deploy-ssh.sh
       - name: Production smoke test
         id: smoke
@@ -231,8 +251,6 @@ jobs:
           RUNTIME_ENV_FILE: ${{ secrets.RUNTIME_ENV_FILE }}
           UNIT_IMAGE_REF: ${{ needs.image.outputs.unit_image_ref }}
           SCANNER_IMAGE_REF: ${{ needs.image.outputs.scanner_image_ref }}
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ROLLBACK: "true"
         run: bash scripts/deploy-ssh.sh
       - name: Close deploy-only SSH access
