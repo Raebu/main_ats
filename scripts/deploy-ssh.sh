@@ -102,31 +102,54 @@ if [ "${ROLLBACK:-false}" != "true" ]; then
 
   archive_sha=$(sha256sum "$IMAGE_ARCHIVE" | awk '{print $1}')
   chunk_dir=$(mktemp -d)
-  split -b 64M -d -a 4 "$IMAGE_ARCHIVE" "$chunk_dir/part-"
+  split -b 32M -d -a 4 "$IMAGE_ARCHIVE" "$chunk_dir/part-"
   "${SSH[@]}" 'rm -rf /opt/raeburn-talent/.incoming-images && mkdir -p /opt/raeburn-talent/.incoming-images'
 
-  for part in "$chunk_dir"/part-*; do
+  transfer_chunk() {
+    local part="$1"
+    local name bytes attempt
     name=$(basename "$part")
     bytes=$(stat -c %s "$part")
-    transferred=false
     for attempt in 1 2 3; do
       echo "Transferring image chunk $name (attempt $attempt/3)..."
-      if "${SCP[@]}" "$part" "${DEPLOY_USER}@${DEPLOY_HOST}:/opt/raeburn-talent/.incoming-images/${name}.tmp" &&
-         "${SSH[@]}" "test \$(stat -c %s '/opt/raeburn-talent/.incoming-images/${name}.tmp') -eq '${bytes}' && mv '/opt/raeburn-talent/.incoming-images/${name}.tmp' '/opt/raeburn-talent/.incoming-images/${name}'"; then
-        transferred=true
-        break
+      if timeout 180s "${SCP[@]}" "$part" "${DEPLOY_USER}@${DEPLOY_HOST}:/opt/raeburn-talent/.incoming-images/${name}.tmp" &&
+         timeout 45s "${SSH[@]}" "test \$(stat -c %s '/opt/raeburn-talent/.incoming-images/${name}.tmp') -eq '${bytes}' && mv '/opt/raeburn-talent/.incoming-images/${name}.tmp' '/opt/raeburn-talent/.incoming-images/${name}'"; then
+        echo "Transferred image chunk $name."
+        return 0
       fi
-      "${SSH[@]}" "rm -f '/opt/raeburn-talent/.incoming-images/${name}.tmp'" || true
-      sleep $((attempt * 5))
+      echo "Image chunk $name attempt $attempt failed."
+      timeout 30s "${SSH[@]}" "rm -f '/opt/raeburn-talent/.incoming-images/${name}.tmp'" || true
+      sleep $((attempt * 3))
     done
-    if [ "$transferred" != "true" ]; then
-      echo "Failed to transfer image chunk $name after 3 attempts."
-      rm -rf "$chunk_dir"
-      exit 1
+    echo "Failed to transfer image chunk $name after 3 attempts."
+    return 1
+  }
+
+  pids=()
+  transfer_failed=false
+  for part in "$chunk_dir"/part-*; do
+    transfer_chunk "$part" &
+    pids+=("$!")
+    if [ "${#pids[@]}" -ge 4 ]; then
+      for pid in "${pids[@]}"; do
+        if ! wait "$pid"; then transfer_failed=true; fi
+      done
+      if [ "$transfer_failed" = "true" ]; then
+        rm -rf "$chunk_dir"
+        exit 1
+      fi
+      pids=()
     fi
   done
+  for pid in "${pids[@]}"; do
+    if ! wait "$pid"; then transfer_failed=true; fi
+  done
+  if [ "$transfer_failed" = "true" ]; then
+    rm -rf "$chunk_dir"
+    exit 1
+  fi
 
-  "${SSH[@]}" "cd /opt/raeburn-talent/.incoming-images && remote_sha=\$(cat part-* | sha256sum | cut -d' ' -f1) && test \"\$remote_sha\" = '${archive_sha}' && cat part-* | gunzip -c | docker load && cd /opt/raeburn-talent && rm -rf .incoming-images"
+  timeout 900s "${SSH[@]}" "cd /opt/raeburn-talent/.incoming-images && remote_sha=\$(cat part-* | sha256sum | cut -d' ' -f1) && test \"\$remote_sha\" = '${archive_sha}' && cat part-* | gunzip -c | docker load && cd /opt/raeburn-talent && rm -rf .incoming-images"
   rm -rf "$chunk_dir"
 fi
 
