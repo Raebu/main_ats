@@ -16,7 +16,16 @@ INCOMING_DIR="/opt/raeburn-talent/.incoming-images-$DEPLOY_RELEASE_ID"
 KEY_FILE=/tmp/raeburn-deploy-key
 PUB_FILE=/tmp/raeburn-deploy-key.pub
 ERR_FILE=/tmp/raeburn-deploy-key.err
-trap 'rm -f "$KEY_FILE" "$PUB_FILE" "$ERR_FILE"' EXIT
+CONTROL_PATH="/tmp/rt-ssh-$.sock"
+TARGET="${DEPLOY_USER}@${DEPLOY_HOST}"
+
+cleanup() {
+  if [ -S "$CONTROL_PATH" ]; then
+    ssh -S "$CONTROL_PATH" -O exit "$TARGET" >/dev/null 2>&1 || true
+  fi
+  rm -f "$CONTROL_PATH" "$KEY_FILE" "$PUB_FILE" "$ERR_FILE"
+}
+trap cleanup EXIT
 
 python3 - "$KEY_FILE" <<'PY'
 import base64
@@ -61,9 +70,7 @@ if [ -n "${DEPLOY_SSH_FINGERPRINT:-}" ] && [ "$fingerprint" != "$DEPLOY_SSH_FING
   exit 2
 fi
 
-SSH=(ssh -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=10 -o ConnectTimeout=30 -i "$KEY_FILE" "${DEPLOY_USER}@${DEPLOY_HOST}")
-SCP=(scp -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=10 -o ConnectTimeout=30 -i "$KEY_FILE")
-SSH_READY=(ssh -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=5 -i "$KEY_FILE" "${DEPLOY_USER}@${DEPLOY_HOST}")
+SSH_READY=(ssh -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=5 -i "$KEY_FILE" "$TARGET")
 
 ssh_ready=false
 for attempt in $(seq 1 18); do
@@ -78,6 +85,35 @@ if [ "$ssh_ready" != "true" ]; then
   echo "Deployment SSH did not become ready after firewall access was opened."
   exit 1
 fi
+
+master_ready=false
+for attempt in 1 2 3; do
+  rm -f "$CONTROL_PATH"
+  if ssh -MNf \
+      -o StrictHostKeyChecking=accept-new \
+      -o IdentitiesOnly=yes \
+      -o BatchMode=yes \
+      -o ConnectTimeout=30 \
+      -o ServerAliveInterval=30 \
+      -o ServerAliveCountMax=10 \
+      -o ControlMaster=yes \
+      -o ControlPersist=600 \
+      -o ControlPath="$CONTROL_PATH" \
+      -i "$KEY_FILE" "$TARGET" &&
+     ssh -S "$CONTROL_PATH" -O check "$TARGET" >/dev/null 2>&1; then
+    master_ready=true
+    break
+  fi
+  echo "Waiting to establish persistent deployment SSH transport (attempt $attempt/3)..."
+  sleep $((attempt * 5))
+done
+if [ "$master_ready" != "true" ]; then
+  echo "Could not establish persistent deployment SSH transport."
+  exit 1
+fi
+
+SSH=(ssh -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -o BatchMode=yes -o ControlMaster=auto -o ControlPersist=600 -o ControlPath="$CONTROL_PATH" -o ServerAliveInterval=30 -o ServerAliveCountMax=10 -i "$KEY_FILE" "$TARGET")
+SCP=(scp -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -o BatchMode=yes -o ControlMaster=auto -o ControlPersist=600 -o ControlPath="$CONTROL_PATH" -o ServerAliveInterval=30 -o ServerAliveCountMax=10 -i "$KEY_FILE")
 
 "${SSH[@]}" 'sudo mkdir -p /opt/raeburn-talent && sudo chown "$USER":"$USER" /opt/raeburn-talent'
 "${SCP[@]}" infrastructure/production/docker-compose.production.yml infrastructure/production/Caddyfile "${DEPLOY_USER}@${DEPLOY_HOST}:/opt/raeburn-talent/"
