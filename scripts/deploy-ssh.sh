@@ -11,7 +11,7 @@ if [[ ! "$DEPLOY_RELEASE_ID" =~ ^[A-Za-z0-9._-]+$ ]]; then
   echo "DEPLOY_RELEASE_ID contains unsupported characters."
   exit 2
 fi
-INCOMING_DIR="${INCOMING_DIR}-$DEPLOY_RELEASE_ID"
+INCOMING_DIR="/opt/raeburn-talent/.incoming-images-$DEPLOY_RELEASE_ID"
 
 KEY_FILE=/tmp/raeburn-deploy-key
 PUB_FILE=/tmp/raeburn-deploy-key.pub
@@ -109,7 +109,7 @@ if [ "${ROLLBACK:-false}" != "true" ]; then
   archive_sha=$(sha256sum "$IMAGE_ARCHIVE" | awk '{print $1}')
   chunk_dir=$(mktemp -d)
   split -b 32M -d -a 4 "$IMAGE_ARCHIVE" "$chunk_dir/part-"
-  "${SSH[@]}" 'rm -rf ${INCOMING_DIR} && mkdir -p ${INCOMING_DIR}'
+  "${SSH[@]}" "rm -rf '${INCOMING_DIR}' && mkdir -p '${INCOMING_DIR}'"
 
   transfer_chunk() {
     local part="$1"
@@ -155,7 +155,7 @@ if [ "${ROLLBACK:-false}" != "true" ]; then
     exit 1
   fi
 
-  timeout 900s "${SSH[@]}" "cd ${INCOMING_DIR} && remote_sha=\$(cat part-* | sha256sum | cut -d' ' -f1) && test \"\$remote_sha\" = '${archive_sha}' && cat part-* | gunzip -c | docker load && cd /opt/raeburn-talent && rm -rf .incoming-images"
+  timeout 900s "${SSH[@]}" "cd ${INCOMING_DIR} && remote_sha=\$(cat part-* | sha256sum | cut -d' ' -f1) && test \"\$remote_sha\" = '${archive_sha}' && cat part-* | gunzip -c | docker load && cd /opt/raeburn-talent && rm -rf '${INCOMING_DIR}'"
   rm -rf "$chunk_dir"
 fi
 
