@@ -57,6 +57,21 @@ fi
 
 SSH=(ssh -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=10 -o ConnectTimeout=30 -i "$KEY_FILE" "${DEPLOY_USER}@${DEPLOY_HOST}")
 SCP=(scp -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=10 -o ConnectTimeout=30 -i "$KEY_FILE")
+SSH_READY=(ssh -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=5 -i "$KEY_FILE" "${DEPLOY_USER}@${DEPLOY_HOST}")
+
+ssh_ready=false
+for attempt in $(seq 1 18); do
+  if "${SSH_READY[@]}" 'printf ready' >/dev/null 2>&1; then
+    ssh_ready=true
+    break
+  fi
+  echo "Waiting for deployment SSH to become ready (attempt $attempt/18)..."
+  sleep 5
+done
+if [ "$ssh_ready" != "true" ]; then
+  echo "Deployment SSH did not become ready after firewall access was opened."
+  exit 1
+fi
 
 "${SSH[@]}" 'sudo mkdir -p /opt/raeburn-talent && sudo chown "$USER":"$USER" /opt/raeburn-talent'
 "${SCP[@]}" infrastructure/production/docker-compose.production.yml infrastructure/production/Caddyfile "${DEPLOY_USER}@${DEPLOY_HOST}:/opt/raeburn-talent/"
