@@ -111,7 +111,7 @@ if [ "${ROLLBACK:-false}" != "true" ]; then
     fi
   done
 
-  "${SSH[@]}" "cd /opt/raeburn-talent/.incoming-images && test \$(cat part-* | sha256sum | awk '{print \\$1}') = '${archive_sha}' && cat part-* | gunzip -c | docker load && cd /opt/raeburn-talent && rm -rf .incoming-images"
+  "${SSH[@]}" "cd /opt/raeburn-talent/.incoming-images && remote_sha=\$(cat part-* | sha256sum | cut -d' ' -f1) && test \"\$remote_sha\" = '${archive_sha}' && cat part-* | gunzip -c | docker load && cd /opt/raeburn-talent && rm -rf .incoming-images"
   rm -rf "$chunk_dir"
 fi
 
