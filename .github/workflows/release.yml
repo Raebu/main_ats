@@ -16,7 +16,7 @@ on:
         type: string
 
 permissions:
-  actions: read
+  actions: write
   contents: write
   packages: write
   id-token: write
@@ -39,6 +39,21 @@ jobs:
           WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha }}
           FALLBACK_SHA: ${{ github.sha }}
         run: echo "value=${REQUESTED_SHA:-${WORKFLOW_SHA:-$FALLBACK_SHA}}" >> "$GITHUB_OUTPUT"
+      - name: Cancel stale Release runs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          for state in in_progress queued; do
+            result=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/release.yml/runs?branch=main&status=${state}&per_page=100")
+            mapfile -t ids < <(printf '%s' "$result" | jq -r --arg current "$CURRENT_RUN_ID" '.workflow_runs[] | select((.id|tostring) != $current) | .id')
+            for id in "${ids[@]}"; do
+              echo "Cancelling stale Release run $id..."
+              gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${id}/cancel" >/dev/null 2>&1 || true
+            done
+          done
       - name: Require matching Security workflow success
         shell: bash
         env:
@@ -166,6 +181,7 @@ jobs:
           UNIT_IMAGE_REF: ${{ needs.image.outputs.unit_image_ref }}
           SCANNER_IMAGE_REF: ${{ needs.image.outputs.scanner_image_ref }}
           IMAGE_ARCHIVE: release-images/release-images.tar.gz
+          DEPLOY_RELEASE_ID: ${{ github.run_id }}
         run: bash scripts/deploy-ssh.sh
       - name: Close deploy-only SSH access
         if: always()
@@ -242,6 +258,7 @@ jobs:
           UNIT_IMAGE_REF: ${{ needs.image.outputs.unit_image_ref }}
           SCANNER_IMAGE_REF: ${{ needs.image.outputs.scanner_image_ref }}
           IMAGE_ARCHIVE: release-images/release-images.tar.gz
+          DEPLOY_RELEASE_ID: ${{ github.run_id }}
         run: bash scripts/deploy-ssh.sh
       - name: Production smoke test
         id: smoke
