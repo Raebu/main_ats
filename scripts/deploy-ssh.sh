@@ -16,7 +16,7 @@ INCOMING_DIR="/opt/raeburn-talent/.incoming-images-$DEPLOY_RELEASE_ID"
 KEY_FILE=/tmp/raeburn-deploy-key
 PUB_FILE=/tmp/raeburn-deploy-key.pub
 ERR_FILE=/tmp/raeburn-deploy-key.err
-CONTROL_PATH="/tmp/rt-ssh-$.sock"
+CONTROL_PATH="/tmp/rt-ssh-${BASHPID}.sock"
 TARGET="${DEPLOY_USER}@${DEPLOY_HOST}"
 
 cleanup() {
@@ -70,30 +70,14 @@ if [ -n "${DEPLOY_SSH_FINGERPRINT:-}" ] && [ "$fingerprint" != "$DEPLOY_SSH_FING
   exit 2
 fi
 
-SSH_READY=(ssh -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=5 -i "$KEY_FILE" "$TARGET")
-
-ssh_ready=false
-for attempt in $(seq 1 18); do
-  if "${SSH_READY[@]}" 'printf ready' >/dev/null 2>&1; then
-    ssh_ready=true
-    break
-  fi
-  echo "Waiting for deployment SSH to become ready (attempt $attempt/18)..."
-  sleep 5
-done
-if [ "$ssh_ready" != "true" ]; then
-  echo "Deployment SSH did not become ready after firewall access was opened."
-  exit 1
-fi
-
 master_ready=false
-for attempt in 1 2 3; do
+for attempt in $(seq 1 18); do
   rm -f "$CONTROL_PATH"
   if ssh -MNf \
       -o StrictHostKeyChecking=accept-new \
       -o IdentitiesOnly=yes \
       -o BatchMode=yes \
-      -o ConnectTimeout=30 \
+      -o ConnectTimeout=8 \
       -o ServerAliveInterval=30 \
       -o ServerAliveCountMax=10 \
       -o ControlMaster=yes \
@@ -104,11 +88,11 @@ for attempt in 1 2 3; do
     master_ready=true
     break
   fi
-  echo "Waiting to establish persistent deployment SSH transport (attempt $attempt/3)..."
-  sleep $((attempt * 5))
+  echo "Waiting for persistent deployment SSH transport (attempt $attempt/18)..."
+  sleep 5
 done
 if [ "$master_ready" != "true" ]; then
-  echo "Could not establish persistent deployment SSH transport."
+  echo "Persistent deployment SSH transport did not become ready after firewall access was opened."
   exit 1
 fi
 
