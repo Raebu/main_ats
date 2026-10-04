@@ -1,4 +1,8 @@
 name: Release
+
+concurrency:
+  group: raeburn-talent-release
+  cancel-in-progress: true
 on:
   workflow_run:
     workflows: ["CI"]
@@ -98,7 +102,7 @@ jobs:
           cosign sign --yes "${{ steps.immutable.outputs.scanner_image_digest }}"
       - name: Export deployment images
         run: |
-          docker save "$UNIT_IMAGE:${{ needs.qualify.outputs.sha }}" "$SCANNER_IMAGE:${{ needs.qualify.outputs.sha }}" | gzip -1 > release-images.tar.gz
+          docker save "$UNIT_IMAGE:${{ needs.qualify.outputs.sha }}" "$SCANNER_IMAGE:${{ needs.qualify.outputs.sha }}" | gzip -6 > release-images.tar.gz
           test -s release-images.tar.gz
       - uses: actions/upload-artifact@v4
         with:
@@ -150,6 +154,7 @@ jobs:
           test -n "$fw"
           doctl compute firewall add-rules "$fw" --inbound-rules "protocol:tcp,ports:22,address:$ip/32"
       - name: Deploy immutable release to staging
+        timeout-minutes: 30
         env:
           DEPLOY_HOST: ${{ env.DEPLOY_HOST }}
           DEPLOY_USER: root
@@ -225,6 +230,7 @@ jobs:
           test -n "$fw"
           doctl compute firewall add-rules "$fw" --inbound-rules "protocol:tcp,ports:22,address:$ip/32"
       - name: Progressive production deployment
+        timeout-minutes: 30
         env:
           DEPLOY_HOST: ${{ env.DEPLOY_HOST }}
           DEPLOY_USER: root
