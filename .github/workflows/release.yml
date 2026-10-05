@@ -117,7 +117,7 @@ jobs:
           cosign sign --yes "${{ steps.immutable.outputs.scanner_image_digest }}"
       - name: Export deployment images
         run: |
-          docker save "$UNIT_IMAGE:${{ needs.qualify.outputs.sha }}" "$SCANNER_IMAGE:${{ needs.qualify.outputs.sha }}" | gzip -6 > release-images.tar.gz
+          docker save "$UNIT_IMAGE:${{ needs.qualify.outputs.sha }}" "$SCANNER_IMAGE:${{ needs.qualify.outputs.sha }}" | gzip -1 > release-images.tar.gz
           test -s release-images.tar.gz
       - uses: actions/upload-artifact@v4
         with:
@@ -125,6 +125,7 @@ jobs:
           path: release-images.tar.gz
           if-no-files-found: error
           retention-days: 1
+          compression-level: 0
 
   staging:
     needs: [qualify,image]
@@ -141,6 +142,7 @@ jobs:
       - uses: digitalocean/action-doctl@v2
         with:
           token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          version: "1.177.0"
       - name: Discover staging runtime addresses
         env:
           DATABASE_RUNTIME_PASSWORD: ${{ secrets.DATABASE_RUNTIME_PASSWORD }}
@@ -182,6 +184,8 @@ jobs:
           SCANNER_IMAGE_REF: ${{ needs.image.outputs.scanner_image_ref }}
           IMAGE_ARCHIVE: release-images/release-images.tar.gz
           DEPLOY_RELEASE_ID: ${{ github.run_id }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/deploy-ssh.sh
       - name: Close deploy-only SSH access
         if: always()
@@ -218,6 +222,7 @@ jobs:
       - uses: digitalocean/action-doctl@v2
         with:
           token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          version: "1.177.0"
       - name: Discover production runtime addresses
         env:
           DATABASE_RUNTIME_PASSWORD: ${{ secrets.DATABASE_RUNTIME_PASSWORD }}
@@ -259,6 +264,8 @@ jobs:
           SCANNER_IMAGE_REF: ${{ needs.image.outputs.scanner_image_ref }}
           IMAGE_ARCHIVE: release-images/release-images.tar.gz
           DEPLOY_RELEASE_ID: ${{ github.run_id }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/deploy-ssh.sh
       - name: Production smoke test
         id: smoke

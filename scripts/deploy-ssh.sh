@@ -123,60 +123,90 @@ SCANNER_IMAGE_REF=%s
 fi
 
 if [ "${ROLLBACK:-false}" != "true" ]; then
-  : "${IMAGE_ARCHIVE:?IMAGE_ARCHIVE required for deployment}"
-  test -s "$IMAGE_ARCHIVE"
+  images_ready=false
 
-  archive_sha=$(sha256sum "$IMAGE_ARCHIVE" | awk '{print $1}')
-  chunk_dir=$(mktemp -d)
-  split -b 32M -d -a 4 "$IMAGE_ARCHIVE" "$chunk_dir/part-"
-  "${SSH[@]}" "rm -rf '${INCOMING_DIR}' && mkdir -p '${INCOMING_DIR}'"
-
-  transfer_chunk() {
-    local part="$1"
-    local name bytes attempt
-    name=$(basename "$part")
-    bytes=$(stat -c %s "$part")
-    for attempt in 1 2 3; do
-      echo "Transferring image chunk $name (attempt $attempt/3)..."
-      if timeout 180s "${SCP[@]}" "$part" "${DEPLOY_USER}@${DEPLOY_HOST}:${INCOMING_DIR}/${name}.tmp" &&
-         timeout 45s "${SSH[@]}" "test \$(stat -c %s '${INCOMING_DIR}/${name}.tmp') -eq '${bytes}' && mv '${INCOMING_DIR}/${name}.tmp' '${INCOMING_DIR}/${name}'"; then
-        echo "Transferred image chunk $name."
-        return 0
-      fi
-      echo "Image chunk $name attempt $attempt failed."
-      timeout 30s "${SSH[@]}" "rm -f '${INCOMING_DIR}/${name}.tmp'" || true
-      sleep $((attempt * 3))
-    done
-    echo "Failed to transfer image chunk $name after 3 attempts."
-    return 1
-  }
-
-  pids=()
-  transfer_failed=false
-  for part in "$chunk_dir"/part-*; do
-    transfer_chunk "$part" &
-    pids+=("$!")
-    if [ "${#pids[@]}" -ge 4 ]; then
-      for pid in "${pids[@]}"; do
-        if ! wait "$pid"; then transfer_failed=true; fi
-      done
-      if [ "$transfer_failed" = "true" ]; then
-        rm -rf "$chunk_dir"
-        exit 1
-      fi
-      pids=()
-    fi
-  done
-  for pid in "${pids[@]}"; do
-    if ! wait "$pid"; then transfer_failed=true; fi
-  done
-  if [ "$transfer_failed" = "true" ]; then
-    rm -rf "$chunk_dir"
-    exit 1
+  if timeout 20s "${SSH[@]}" "docker image inspect '${UNIT_IMAGE_REF}' '${SCANNER_IMAGE_REF}' >/dev/null 2>&1"; then
+    echo "Deployment images already exist on the runtime host."
+    images_ready=true
   fi
 
-  timeout 900s "${SSH[@]}" "cd ${INCOMING_DIR} && remote_sha=\$(cat part-* | sha256sum | cut -d' ' -f1) && test \"\$remote_sha\" = '${archive_sha}' && cat part-* | gunzip -c | docker load && cd /opt/raeburn-talent && rm -rf '${INCOMING_DIR}'"
-  rm -rf "$chunk_dir"
+  if [ "$images_ready" != "true" ] && [ -n "${GHCR_TOKEN:-}" ] && [ -n "${GHCR_USER:-}" ]; then
+    remote_docker_config="/tmp/raeburn-docker-auth-${DEPLOY_RELEASE_ID}"
+    "${SSH[@]}" "rm -rf '${remote_docker_config}' && install -d -m 700 '${remote_docker_config}'"
+
+    if printf '%s' "$GHCR_TOKEN" | timeout 30s "${SSH[@]}" "DOCKER_CONFIG='${remote_docker_config}' docker login ghcr.io -u '${GHCR_USER}' --password-stdin >/dev/null 2>&1"; then
+      echo "Trying direct GHCR image pull before archive fallback..."
+      if timeout 120s "${SSH[@]}" "DOCKER_CONFIG='${remote_docker_config}' docker pull '${UNIT_IMAGE_REF}'" &&
+         timeout 120s "${SSH[@]}" "DOCKER_CONFIG='${remote_docker_config}' docker pull '${SCANNER_IMAGE_REF}'"; then
+        images_ready=true
+        echo "Deployment images pulled directly from GHCR."
+      else
+        echo "Direct GHCR pull did not complete quickly enough; using archive fallback."
+      fi
+    else
+      echo "GHCR login did not complete; using archive fallback."
+    fi
+
+    timeout 30s "${SSH[@]}" "rm -rf '${remote_docker_config}'" || true
+  fi
+
+  if [ "$images_ready" != "true" ]; then
+    : "${IMAGE_ARCHIVE:?IMAGE_ARCHIVE required for archive fallback}"
+    test -s "$IMAGE_ARCHIVE"
+
+    archive_sha=$(sha256sum "$IMAGE_ARCHIVE" | awk '{print $1}')
+    chunk_dir=$(mktemp -d)
+    split -b 32M -d -a 4 "$IMAGE_ARCHIVE" "$chunk_dir/part-"
+    "${SSH[@]}" "rm -rf '${INCOMING_DIR}' && mkdir -p '${INCOMING_DIR}'"
+
+    transfer_chunk() {
+      local part="$1"
+      local name bytes attempt
+      name=$(basename "$part")
+      bytes=$(stat -c %s "$part")
+      for attempt in 1 2 3; do
+        echo "Transferring image chunk $name (attempt $attempt/3)..."
+        if timeout 180s "${SCP[@]}" "$part" "${DEPLOY_USER}@${DEPLOY_HOST}:${INCOMING_DIR}/${name}.tmp" &&
+           timeout 45s "${SSH[@]}" "test \$(stat -c %s '${INCOMING_DIR}/${name}.tmp') -eq '${bytes}' && mv '${INCOMING_DIR}/${name}.tmp' '${INCOMING_DIR}/${name}'"; then
+          echo "Transferred image chunk $name."
+          return 0
+        fi
+        echo "Image chunk $name attempt $attempt failed."
+        timeout 30s "${SSH[@]}" "rm -f '${INCOMING_DIR}/${name}.tmp'" || true
+        sleep $((attempt * 3))
+      done
+      echo "Failed to transfer image chunk $name after 3 attempts."
+      return 1
+    }
+
+    pids=()
+    transfer_failed=false
+    for part in "$chunk_dir"/part-*; do
+      transfer_chunk "$part" &
+      pids+=("$!")
+      if [ "${#pids[@]}" -ge 4 ]; then
+        for pid in "${pids[@]}"; do
+          if ! wait "$pid"; then transfer_failed=true; fi
+        done
+        if [ "$transfer_failed" = "true" ]; then
+          rm -rf "$chunk_dir"
+          exit 1
+        fi
+        pids=()
+      fi
+    done
+    for pid in "${pids[@]}"; do
+      if ! wait "$pid"; then transfer_failed=true; fi
+    done
+    if [ "$transfer_failed" = "true" ]; then
+      rm -rf "$chunk_dir"
+      exit 1
+    fi
+
+    echo "Archive transfer complete; verifying and importing deployment images..."
+    timeout 1200s "${SSH[@]}" "cd '${INCOMING_DIR}' && remote_sha=\$(cat part-* | sha256sum | cut -d' ' -f1) && test \"\$remote_sha\" = '${archive_sha}' && cat part-* | gzip -dc | docker load && cd /opt/raeburn-talent && rm -rf '${INCOMING_DIR}'"
+    rm -rf "$chunk_dir"
+  fi
 fi
 
 "${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml up -d --remove-orphans && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml ps"
