@@ -85,6 +85,14 @@ jobs:
             fi
           fi
 
-          tofu -chdir=infrastructure/terraform plan -input=false -out=/tmp/talent.tfplan -var-file=staging.tfvars.example
+          tofu -chdir=infrastructure/terraform plan \
+            -input=false \
+            -out=/tmp/talent.tfplan \
+            -var-file=staging.tfvars.example \
+            -target=cloudflare_record.api \
+            -target=cloudflare_record.hooks \
+            -target=cloudflare_record.careers \
+            -target=cloudflare_record.talent_admin \
+            -target=cloudflare_ruleset.talent_waf_canonical
           tofu -chdir=infrastructure/terraform apply -input=false -auto-approve /tmp/talent.tfplan
           tofu -chdir=infrastructure/terraform output -raw api_hostname
