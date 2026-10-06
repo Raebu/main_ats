@@ -169,7 +169,7 @@ resource "cloudflare_r2_bucket" "documents" {
 
 resource "cloudflare_record" "api" {
   zone_id = data.cloudflare_zone.primary.id
-  name    = var.environment == "production" ? "api.talent" : "api.staging.talent"
+  name    = var.environment == "production" ? "api-talent" : "api-staging-talent"
   type    = "A"
   content = digitalocean_droplet.runtime.ipv4_address
   proxied = true
@@ -177,7 +177,7 @@ resource "cloudflare_record" "api" {
 
 resource "cloudflare_record" "hooks" {
   zone_id = data.cloudflare_zone.primary.id
-  name    = var.environment == "production" ? "hooks.talent" : "hooks.staging.talent"
+  name    = var.environment == "production" ? "hooks-talent" : "hooks-staging-talent"
   type    = "A"
   content = digitalocean_droplet.runtime.ipv4_address
   proxied = true
@@ -185,7 +185,7 @@ resource "cloudflare_record" "hooks" {
 
 resource "cloudflare_record" "talent_admin" {
   zone_id = data.cloudflare_zone.primary.id
-  name    = var.environment == "production" ? "talent" : "talent.staging"
+  name    = var.environment == "production" ? "talent" : "talent-staging"
   type    = "CNAME"
   content = "cname.vercel-dns.com"
   proxied = false
@@ -193,7 +193,7 @@ resource "cloudflare_record" "talent_admin" {
 
 resource "cloudflare_record" "careers" {
   zone_id = data.cloudflare_zone.primary.id
-  name    = var.environment == "production" ? "careers" : "careers.staging"
+  name    = var.environment == "production" ? "careers" : "careers-staging"
   type    = "CNAME"
   content = "cname.vercel-dns.com"
   proxied = false
