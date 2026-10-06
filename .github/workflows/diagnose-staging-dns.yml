@@ -35,7 +35,7 @@ jobs:
           record_json=$(curl -fsS \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             -H "Content-Type: application/json" \
-            "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?type=A&name=api.staging.talent.theraeburngroup.com")
+            "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?type=A&name=api-staging-talent.theraeburngroup.com")
           jq -c '{success,result:[.result[] | {id,name,type,proxied,ttl}]}' <<<"$record_json"
 
           echo "Public NS via Google DNS:"
@@ -43,13 +43,13 @@ jobs:
           jq -c '{Status,Answer:[.Answer[]? | {name,type,TTL,data}]}' <<<"$public_ns"
 
           echo "Public A via Google DNS:"
-          public_a=$(curl -fsS "https://dns.google/resolve?name=api.staging.talent.theraeburngroup.com&type=A")
+          public_a=$(curl -fsS "https://dns.google/resolve?name=api-staging-talent.theraeburngroup.com&type=A")
           jq -c '{Status,Answer:[.Answer[]? | {name,type,TTL,data}]}' <<<"$public_a"
 
           echo "Public A via Cloudflare 1.1.1.1:"
           public_cf=$(curl -fsS \
             -H "accept: application/dns-json" \
-            "https://cloudflare-dns.com/dns-query?name=api.staging.talent.theraeburngroup.com&type=A")
+            "https://cloudflare-dns.com/dns-query?name=api-staging-talent.theraeburngroup.com&type=A")
           jq -c '{Status,Answer:[.Answer[]? | {name,type,TTL,data}]}' <<<"$public_cf"
 
           zone_status=$(jq -r '.result[0].status // empty' <<<"$zone_json")
@@ -63,7 +63,7 @@ jobs:
           http_result=$(curl -sS --connect-timeout 10 --max-time 20 \
             -o /tmp/staging-health-body \
             -w 'http_code=%{http_code} remote_ip=%{remote_ip} tls=%{ssl_verify_result}' \
-            "https://api.staging.talent.theraeburngroup.com/health" 2>&1)
+            "https://api-staging-talent.theraeburngroup.com/health" 2>&1)
           http_rc=$?
           set -e
           echo "curl_rc=$http_rc $http_result"
