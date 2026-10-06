@@ -1,9 +1,9 @@
 name: Diagnose staging DNS
 # Branch-only diagnostic; safe to delete after resolution.
 on:
-  push:
+  pull_request:
     branches:
-      - diagnose-staging-dns-delegation
+      - main
 
 permissions:
   contents: read
