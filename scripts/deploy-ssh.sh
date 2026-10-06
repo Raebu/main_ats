@@ -169,6 +169,36 @@ if [ "${ROLLBACK:-false}" != "true" ]; then
     : "${IMAGE_ARCHIVE:?IMAGE_ARCHIVE required for archive fallback}"
     test -s "$IMAGE_ARCHIVE"
 
+    echo "Preparing runtime host for archive import..."
+    "${SSH[@]}" 'set -e
+      cd /opt/raeburn-talent
+      keep_file=$(mktemp)
+      trap "rm -f $keep_file" EXIT
+      for f in .release.current .release.previous; do
+        if [ -f "$f" ]; then
+          sed -n "s/^[A-Z_]*IMAGE_REF=//p" "$f"
+        fi
+      done | sort -u > "$keep_file"
+
+      echo "Disk usage before image cleanup:"
+      df -h / /var/lib/docker 2>/dev/null || df -h /
+      docker system df || true
+
+      for repo in ghcr.io/raebu/raeburn-talent-unit ghcr.io/raebu/raeburn-talent-malware-scanner; do
+        docker image ls "$repo" --format "{{.Repository}}:{{.Tag}}" | while IFS= read -r ref; do
+          [ -n "$ref" ] || continue
+          [ "$ref" = "$repo:<none>" ] && continue
+          if ! grep -Fxq "$ref" "$keep_file"; then
+            docker image rm "$ref" >/dev/null 2>&1 || true
+          fi
+        done
+      done
+      docker image prune -f >/dev/null 2>&1 || true
+
+      echo "Disk usage after image cleanup:"
+      df -h / /var/lib/docker 2>/dev/null || df -h /
+      docker system df || true'
+
     archive_sha=$(sha256sum "$IMAGE_ARCHIVE" | awk '{print $1}')
     chunk_dir=$(mktemp -d)
     split -b 32M -d -a 4 "$IMAGE_ARCHIVE" "$chunk_dir/part-"
