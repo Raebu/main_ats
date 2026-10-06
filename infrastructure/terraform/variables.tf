@@ -25,8 +25,10 @@ variable "cloudflare_account_id" {
   type = string
 }
 
-variable "cloudflare_zone_id" {
-  type = string
+variable "cloudflare_zone_name" {
+  type        = string
+  default     = "theraeburngroup.com"
+  description = "Canonical Cloudflare DNS zone for Raeburn Talent public hostnames."
 }
 
 variable "ssh_key_fingerprints" {

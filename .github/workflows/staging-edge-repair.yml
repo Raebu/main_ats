@@ -1,0 +1,64 @@
+name: Staging edge repair
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infrastructure/terraform/main.tf"
+      - "infrastructure/terraform/variables.tf"
+      - ".github/workflows/staging-edge-repair.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: raeburn-talent-staging-edge-repair
+  cancel-in-progress: false
+
+env:
+  TOFU_VERSION: "1.10.6"
+  TF_STATE_BUCKET: "raeburn-talent-terraform-state"
+  TF_STATE_ENDPOINT: "https://e01b58b8d08d2c97284b2a46a13f3815.r2.cloudflarestorage.com"
+
+jobs:
+  apply-staging:
+    environment: staging
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
+      AWS_EC2_METADATA_DISABLED: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+      - name: Configure encrypted staging state
+        run: |
+          set -euo pipefail
+          cat > /tmp/backend.hcl <<EOF
+          bucket = "$TF_STATE_BUCKET"
+          key    = "staging/terraform.tfstate"
+          region = "auto"
+          skip_credentials_validation = true
+          skip_metadata_api_check     = true
+          skip_region_validation      = true
+          skip_requesting_account_id  = true
+          skip_s3_checksum            = true
+          use_path_style              = true
+          endpoints = {
+            s3 = "$TF_STATE_ENDPOINT"
+          }
+          EOF
+          tofu -chdir=infrastructure/terraform init -input=false -backend-config=/tmp/backend.hcl
+      - name: Apply canonical staging edge
+        env:
+          TF_VAR_digitalocean_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_ssh_key_fingerprints: ${{ secrets.TF_VAR_SSH_KEY_FINGERPRINTS }}
+          TF_VAR_alert_emails: ${{ secrets.TF_VAR_ALERT_EMAILS }}
+        run: |
+          set -euo pipefail
+          tofu -chdir=infrastructure/terraform plan -input=false -out=/tmp/talent.tfplan -var-file=staging.tfvars.example
+          tofu -chdir=infrastructure/terraform apply -input=false -auto-approve /tmp/talent.tfplan
+          tofu -chdir=infrastructure/terraform output -raw api_hostname

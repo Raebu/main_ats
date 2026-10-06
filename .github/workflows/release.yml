@@ -180,6 +180,7 @@ jobs:
           DATABASE_BASE_URL_OVERRIDE: ${{ env.DATABASE_BASE_URL_OVERRIDE }}
           NATS_URL_OVERRIDE: ${{ env.NATS_URL_OVERRIDE }}
           RUNTIME_ENV_FILE: ${{ secrets.RUNTIME_ENV_FILE }}
+          PUBLIC_BASE_URL: ${{ vars.BASE_URL }}
           UNIT_IMAGE_REF: ${{ needs.image.outputs.unit_image_ref }}
           SCANNER_IMAGE_REF: ${{ needs.image.outputs.scanner_image_ref }}
           IMAGE_ARCHIVE: release-images/release-images.tar.gz
@@ -260,6 +261,7 @@ jobs:
           DATABASE_BASE_URL_OVERRIDE: ${{ env.DATABASE_BASE_URL_OVERRIDE }}
           NATS_URL_OVERRIDE: ${{ env.NATS_URL_OVERRIDE }}
           RUNTIME_ENV_FILE: ${{ secrets.RUNTIME_ENV_FILE }}
+          PUBLIC_BASE_URL: ${{ vars.BASE_URL }}
           UNIT_IMAGE_REF: ${{ needs.image.outputs.unit_image_ref }}
           SCANNER_IMAGE_REF: ${{ needs.image.outputs.scanner_image_ref }}
           IMAGE_ARCHIVE: release-images/release-images.tar.gz
@@ -283,6 +285,7 @@ jobs:
           DATABASE_BASE_URL_OVERRIDE: ${{ env.DATABASE_BASE_URL_OVERRIDE }}
           NATS_URL_OVERRIDE: ${{ env.NATS_URL_OVERRIDE }}
           RUNTIME_ENV_FILE: ${{ secrets.RUNTIME_ENV_FILE }}
+          PUBLIC_BASE_URL: ${{ vars.BASE_URL }}
           UNIT_IMAGE_REF: ${{ needs.image.outputs.unit_image_ref }}
           SCANNER_IMAGE_REF: ${{ needs.image.outputs.scanner_image_ref }}
           ROLLBACK: "true"

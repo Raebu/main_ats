@@ -86,7 +86,6 @@ jobs:
           TF_VAR_digitalocean_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_ssh_key_fingerprints: ${{ secrets.TF_VAR_SSH_KEY_FINGERPRINTS }}
           TF_VAR_alert_emails: ${{ secrets.TF_VAR_ALERT_EMAILS }}
           TARGET_ENV: ${{ github.event.inputs.environment || 'staging' }}
@@ -142,7 +141,6 @@ jobs:
           TF_VAR_digitalocean_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_ssh_key_fingerprints: ${{ secrets.TF_VAR_SSH_KEY_FINGERPRINTS }}
           TF_VAR_alert_emails: ${{ secrets.TF_VAR_ALERT_EMAILS }}
           TARGET_ENV: ${{ inputs.environment }}
@@ -191,7 +189,6 @@ jobs:
           TF_VAR_digitalocean_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_ssh_key_fingerprints: ${{ secrets.TF_VAR_SSH_KEY_FINGERPRINTS }}
           TF_VAR_alert_emails: ${{ secrets.TF_VAR_ALERT_EMAILS }}
         run: |
