@@ -58,6 +58,19 @@ jobs:
 
           echo "Summary: zone_status=$zone_status record_count=$record_count public_dns_status=$public_status"
 
+          echo "External HTTPS health check:"
+          set +e
+          http_result=$(curl -sS --connect-timeout 10 --max-time 20 \
+            -o /tmp/staging-health-body \
+            -w 'http_code=%{http_code} remote_ip=%{remote_ip} tls=%{ssl_verify_result}' \
+            "https://api.staging.talent.theraeburngroup.com/health" 2>&1)
+          http_rc=$?
+          set -e
+          echo "curl_rc=$http_rc $http_result"
+          if [ -s /tmp/staging-health-body ]; then
+            head -c 1000 /tmp/staging-health-body; echo
+          fi
+
           if [ "$zone_status" != "active" ]; then
             echo "::error::Cloudflare zone is not active; registrar delegation must match the Cloudflare-assigned nameservers."
             exit 1
