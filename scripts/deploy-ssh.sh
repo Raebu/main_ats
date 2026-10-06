@@ -170,8 +170,26 @@ if [ "${ROLLBACK:-false}" != "true" ]; then
     test -s "$IMAGE_ARCHIVE"
 
     echo "Preparing runtime host for archive import..."
-    "${SSH[@]}" 'set -e
+    timeout 180s "${SSH[@]}" 'set -e
       cd /opt/raeburn-talent
+
+      if ! timeout --signal=TERM --kill-after=5s 15s docker info >/dev/null 2>&1; then
+        echo "Docker daemon is not responding; restarting Docker service."
+        systemctl restart docker
+        recovered=false
+        for attempt in $(seq 1 12); do
+          if timeout --signal=TERM --kill-after=5s 10s docker info >/dev/null 2>&1; then
+            recovered=true
+            break
+          fi
+          sleep 5
+        done
+        if [ "$recovered" != "true" ]; then
+          echo "Docker daemon did not recover after restart."
+          exit 1
+        fi
+      fi
+
       keep_file=$(mktemp)
       trap "rm -f $keep_file" EXIT
       for f in .release.current .release.previous; do
@@ -182,22 +200,23 @@ if [ "${ROLLBACK:-false}" != "true" ]; then
 
       echo "Disk usage before image cleanup:"
       df -h / /var/lib/docker 2>/dev/null || df -h /
-      docker system df || true
+      timeout --signal=TERM --kill-after=5s 15s docker system df || true
 
       for repo in ghcr.io/raebu/raeburn-talent-unit ghcr.io/raebu/raeburn-talent-malware-scanner; do
-        docker image ls "$repo" --format "{{.Repository}}:{{.Tag}}" | while IFS= read -r ref; do
+        refs=$(timeout --signal=TERM --kill-after=5s 20s docker image ls "$repo" --format "{{.Repository}}:{{.Tag}}" || true)
+        printf "%s\n" "$refs" | while IFS= read -r ref; do
           [ -n "$ref" ] || continue
           [ "$ref" = "$repo:<none>" ] && continue
           if ! grep -Fxq "$ref" "$keep_file"; then
-            docker image rm "$ref" >/dev/null 2>&1 || true
+            timeout --signal=TERM --kill-after=5s 20s docker image rm "$ref" >/dev/null 2>&1 || true
           fi
         done
       done
-      docker image prune -f >/dev/null 2>&1 || true
+      timeout --signal=TERM --kill-after=5s 30s docker image prune -f >/dev/null 2>&1 || true
 
       echo "Disk usage after image cleanup:"
       df -h / /var/lib/docker 2>/dev/null || df -h /
-      docker system df || true'
+      timeout --signal=TERM --kill-after=5s 15s docker system df || true'
 
     archive_sha=$(sha256sum "$IMAGE_ARCHIVE" | awk '{print $1}')
     chunk_dir=$(mktemp -d)
@@ -249,7 +268,7 @@ if [ "${ROLLBACK:-false}" != "true" ]; then
     fi
 
     echo "Archive transfer complete; verifying and importing deployment images..."
-    timeout 1200s "${SSH[@]}" "cd '${INCOMING_DIR}' && remote_sha=\$(cat part-* | sha256sum | cut -d' ' -f1) && test \"\$remote_sha\" = '${archive_sha}' && cat part-* | gzip -dc | docker load && cd /opt/raeburn-talent && rm -rf '${INCOMING_DIR}'"
+    timeout 720s "${SSH[@]}" "set -e; cd '${INCOMING_DIR}'; remote_sha=\$(cat part-* | sha256sum | cut -d' ' -f1); test \"\$remote_sha\" = '${archive_sha}'; timeout --signal=TERM --kill-after=20s 600s sh -c 'cat part-* | gzip -dc | docker load'; cd /opt/raeburn-talent; rm -rf '${INCOMING_DIR}'"
     rm -rf "$chunk_dir"
   fi
 fi
