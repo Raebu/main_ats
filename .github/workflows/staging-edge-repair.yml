@@ -59,6 +59,32 @@ jobs:
           TF_VAR_alert_emails: ${{ secrets.TF_VAR_ALERT_EMAILS }}
         run: |
           set -euo pipefail
+
+          if ! tofu -chdir=infrastructure/terraform state show cloudflare_ruleset.talent_waf_canonical >/dev/null 2>&1; then
+            zone_id=$(curl -fsS \
+              -H "Authorization: Bearer $TF_VAR_cloudflare_api_token" \
+              -H "Content-Type: application/json" \
+              "https://api.cloudflare.com/client/v4/zones?name=theraeburngroup.com&account.id=$TF_VAR_cloudflare_account_id" \
+              | jq -r '.result[0].id // empty')
+            test -n "$zone_id"
+
+            ruleset_id=$(curl -fsS \
+              -H "Authorization: Bearer $TF_VAR_cloudflare_api_token" \
+              -H "Content-Type: application/json" \
+              "https://api.cloudflare.com/client/v4/zones/$zone_id/rulesets" \
+              | jq -r '.result[] | select(.phase=="http_request_firewall_custom" and .kind=="zone") | .id' \
+              | head -n 1)
+
+            if [ -n "$ruleset_id" ]; then
+              echo "Adopting existing canonical Cloudflare custom WAF ruleset into Terraform state."
+              tofu -chdir=infrastructure/terraform import \
+                -input=false \
+                -var-file=staging.tfvars.example \
+                cloudflare_ruleset.talent_waf_canonical \
+                "zone/$zone_id/$ruleset_id"
+            fi
+          fi
+
           tofu -chdir=infrastructure/terraform plan -input=false -out=/tmp/talent.tfplan -var-file=staging.tfvars.example
           tofu -chdir=infrastructure/terraform apply -input=false -auto-approve /tmp/talent.tfplan
           tofu -chdir=infrastructure/terraform output -raw api_hostname
