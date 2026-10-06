@@ -58,6 +58,24 @@ jobs:
 
           echo "Summary: zone_status=$zone_status record_count=$record_count public_dns_status=$public_status"
 
+          echo "Relevant Cloudflare zone settings:"
+          settings_json=$(curl -fsS \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.cloudflare.com/client/v4/zones/$zone_id/settings")
+          jq -c '[.result[] | select(.id=="security_level" or .id=="browser_check" or .id=="challenge_ttl" or .id=="always_use_https" or .id=="ssl" or .id=="tls_1_3") | {id,value,editable}]' <<<"$settings_json"
+
+          echo "Cloudflare bot-management settings (if available):"
+          set +e
+          bot_json=$(curl -sS \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.cloudflare.com/client/v4/zones/$zone_id/bot_management")
+          bot_rc=$?
+          set -e
+          echo "bot_api_rc=$bot_rc"
+          jq -c '{success,result}' <<<"$bot_json" 2>/dev/null || true
+
           echo "External HTTPS health check:"
           set +e
           http_result=$(curl -sS --connect-timeout 10 --max-time 20 \
