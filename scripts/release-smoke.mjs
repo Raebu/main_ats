@@ -5,9 +5,9 @@ const timeoutMs=Number(process.env.SMOKE_TIMEOUT_MS||300000);
 const intervalMs=Number(process.env.SMOKE_INTERVAL_MS||5000);
 const requestTimeoutMs=Number(process.env.SMOKE_REQUEST_TIMEOUT_MS||10000);
 const retryStatuses=new Set([408,425,429,500,502,503,504]);
+const deadline=Date.now()+timeoutMs;
 
 async function waitForPath(path){
-  const deadline=Date.now()+timeoutMs;
   let attempt=0;
   let lastError="not attempted";
 
