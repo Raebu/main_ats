@@ -199,7 +199,7 @@ resource "cloudflare_record" "careers" {
   proxied = false
 }
 
-resource "cloudflare_ruleset" "talent_waf" {
+resource "cloudflare_ruleset" "talent_waf_canonical" {
   zone_id     = data.cloudflare_zone.primary.id
   name        = "${local.prefix}-waf"
   description = "Raeburn Talent production edge protections"
