@@ -1,4 +1,5 @@
 name: Diagnose staging DNS
+# Branch-only diagnostic; safe to delete after resolution.
 on:
   push:
     branches:
