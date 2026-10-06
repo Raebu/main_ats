@@ -1,0 +1,73 @@
+name: Diagnose staging DNS
+on:
+  push:
+    branches:
+      - diagnose-staging-dns-delegation
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    environment: staging
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compare Cloudflare zone with public DNS
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+
+          zone_json=$(curl -fsS \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.cloudflare.com/client/v4/zones?name=theraeburngroup.com&account.id=$CLOUDFLARE_ACCOUNT_ID")
+
+          zone_id=$(jq -r '.result[0].id // empty' <<<"$zone_json")
+          test -n "$zone_id"
+
+          echo "Cloudflare zone:"
+          jq -c '.result[0] | {id,name,status,paused,type,name_servers,original_name_servers}' <<<"$zone_json"
+
+          echo "Cloudflare API record:"
+          record_json=$(curl -fsS \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?type=A&name=api.staging.talent.theraeburngroup.com")
+          jq -c '{success,result:[.result[] | {id,name,type,proxied,ttl}]}' <<<"$record_json"
+
+          echo "Public NS via Google DNS:"
+          public_ns=$(curl -fsS "https://dns.google/resolve?name=theraeburngroup.com&type=NS")
+          jq -c '{Status,Answer:[.Answer[]? | {name,type,TTL,data}]}' <<<"$public_ns"
+
+          echo "Public A via Google DNS:"
+          public_a=$(curl -fsS "https://dns.google/resolve?name=api.staging.talent.theraeburngroup.com&type=A")
+          jq -c '{Status,Answer:[.Answer[]? | {name,type,TTL,data}]}' <<<"$public_a"
+
+          echo "Public A via Cloudflare 1.1.1.1:"
+          public_cf=$(curl -fsS \
+            -H "accept: application/dns-json" \
+            "https://cloudflare-dns.com/dns-query?name=api.staging.talent.theraeburngroup.com&type=A")
+          jq -c '{Status,Answer:[.Answer[]? | {name,type,TTL,data}]}' <<<"$public_cf"
+
+          zone_status=$(jq -r '.result[0].status // empty' <<<"$zone_json")
+          record_count=$(jq -r '.result | length' <<<"$record_json")
+          public_status=$(jq -r '.Status' <<<"$public_a")
+
+          echo "Summary: zone_status=$zone_status record_count=$record_count public_dns_status=$public_status"
+
+          if [ "$zone_status" != "active" ]; then
+            echo "::error::Cloudflare zone is not active; registrar delegation must match the Cloudflare-assigned nameservers."
+            exit 1
+          fi
+
+          if [ "$record_count" -lt 1 ]; then
+            echo "::error::Canonical staging API record is absent from the selected Cloudflare zone."
+            exit 1
+          fi
+
+          if [ "$public_status" != "0" ]; then
+            echo "::error::Record exists in Cloudflare but is not resolving publicly; compare public NS with Cloudflare-assigned NS above."
+            exit 1
+          fi
