@@ -71,6 +71,21 @@ jobs:
             head -c 1000 /tmp/staging-health-body; echo
           fi
 
+          echo "External HTTPS health check with browser UA:"
+          set +e
+          browser_result=$(curl -sS --connect-timeout 10 --max-time 20 \
+            -A 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36' \
+            -H 'Accept: application/json,text/plain,*/*' \
+            -o /tmp/staging-health-browser-body \
+            -w 'http_code=%{http_code} remote_ip=%{remote_ip} tls=%{ssl_verify_result}' \
+            "https://api-staging-talent.theraeburngroup.com/health" 2>&1)
+          browser_rc=$?
+          set -e
+          echo "browser_curl_rc=$browser_rc $browser_result"
+          if [ -s /tmp/staging-health-browser-body ]; then
+            head -c 1000 /tmp/staging-health-browser-body; echo
+          fi
+
           if [ "$zone_status" != "active" ]; then
             echo "::error::Cloudflare zone is not active; registrar delegation must match the Cloudflare-assigned nameservers."
             exit 1
