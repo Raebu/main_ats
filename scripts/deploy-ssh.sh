@@ -259,9 +259,9 @@ fi
 
 runtime_ready=false
 for attempt in $(seq 1 60); do
-  if timeout 15s "${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml exec -T edge-api node -e 'fetch(\"http://127.0.0.1:4100/health\",{signal:AbortSignal.timeout(3000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))'" >/dev/null 2>&1; then
+  if timeout 15s "${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml exec -T edge-api node -e 'Promise.all([\"/health\",\"/v1/jobs/public\"].map(p=>fetch(\"http://127.0.0.1:4100\"+p,{headers:{\"x-tenant-id\":\"tenant_raeburn_group\"},signal:AbortSignal.timeout(3000)}))).then(rs=>process.exit(rs.every(r=>r.ok)?0:1)).catch(()=>process.exit(1))'" >/dev/null 2>&1; then
     runtime_ready=true
-    echo "Staging runtime API is internally ready."
+    echo "Runtime API health and public-jobs endpoints are internally ready."
     break
   fi
   echo "Waiting for staging runtime API readiness (attempt $attempt/60)..."
