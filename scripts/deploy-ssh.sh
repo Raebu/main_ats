@@ -103,6 +103,21 @@ SCP=(scp -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -o BatchMode=
 "${SCP[@]}" infrastructure/production/docker-compose.production.yml infrastructure/production/Caddyfile "${DEPLOY_USER}@${DEPLOY_HOST}:/opt/raeburn-talent/"
 tmp_env=$(mktemp)
 printf '%s\n' "$RUNTIME_ENV_FILE" > "$tmp_env"
+if [ -n "${PUBLIC_BASE_URL:-}" ]; then
+  api_domain=$(python3 - <<'PY'
+import os
+from urllib.parse import urlparse
+
+value = os.environ["PUBLIC_BASE_URL"].strip()
+parsed = urlparse(value if "://" in value else f"https://{value}")
+if not parsed.hostname:
+    raise SystemExit("PUBLIC_BASE_URL does not contain a valid hostname")
+print(parsed.hostname)
+PY
+)
+  sed -i '/^API_DOMAIN=/d' "$tmp_env"
+  printf 'API_DOMAIN=%s\n' "$api_domain" >> "$tmp_env"
+fi
 if [ -n "${DATABASE_BASE_URL_OVERRIDE:-}" ]; then printf 'DATABASE_BASE_URL=%s\n' "$DATABASE_BASE_URL_OVERRIDE" >> "$tmp_env"; fi
 if [ -n "${NATS_URL_OVERRIDE:-}" ]; then printf 'NATS_URL=%s\n' "$NATS_URL_OVERRIDE" >> "$tmp_env"; fi
 cat "$tmp_env" | "${SSH[@]}" 'umask 077; cat > /opt/raeburn-talent/.env.production'
@@ -210,6 +225,7 @@ if [ "${ROLLBACK:-false}" != "true" ]; then
 fi
 
 "${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml up -d --remove-orphans"
+"${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml up -d --no-deps --force-recreate caddy"
 
 runtime_ready=false
 for attempt in $(seq 1 60); do
