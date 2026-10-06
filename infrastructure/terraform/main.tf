@@ -208,6 +208,13 @@ resource "cloudflare_ruleset" "talent_waf_canonical" {
 
   rules {
     action      = "block"
+    expression  = "(cf.verified_bot_category eq \"AI Crawler\")"
+    description = "Block AI Scrapers and Crawlers"
+    enabled     = true
+  }
+
+  rules {
+    action      = "block"
     expression  = "(http.request.method in {\"TRACE\" \"TRACK\"})"
     description = "Block unsafe HTTP methods"
     enabled     = true
