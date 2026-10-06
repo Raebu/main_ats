@@ -136,8 +136,8 @@ if [ "${ROLLBACK:-false}" != "true" ]; then
 
     if printf '%s' "$GHCR_TOKEN" | timeout 30s "${SSH[@]}" "DOCKER_CONFIG='${remote_docker_config}' docker login ghcr.io -u '${GHCR_USER}' --password-stdin >/dev/null 2>&1"; then
       echo "Trying direct GHCR image pull before archive fallback..."
-      if timeout 120s "${SSH[@]}" "DOCKER_CONFIG='${remote_docker_config}' docker pull '${UNIT_IMAGE_REF}'" &&
-         timeout 120s "${SSH[@]}" "DOCKER_CONFIG='${remote_docker_config}' docker pull '${SCANNER_IMAGE_REF}'"; then
+      if "${SSH[@]}" "DOCKER_CONFIG='${remote_docker_config}' timeout --signal=TERM --kill-after=15s 600s docker pull '${UNIT_IMAGE_REF}'" &&
+         "${SSH[@]}" "DOCKER_CONFIG='${remote_docker_config}' timeout --signal=TERM --kill-after=15s 300s docker pull '${SCANNER_IMAGE_REF}'"; then
         images_ready=true
         echo "Deployment images pulled directly from GHCR."
       else
