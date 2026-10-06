@@ -209,6 +209,7 @@ jobs:
           allow_issue_writing: false
 
   production:
+    if: vars.PRODUCTION_ENABLED == 'true'
     needs: [qualify,image,staging]
     environment: production
     runs-on: ubuntu-latest
@@ -302,6 +303,7 @@ jobs:
         run: exit 1
 
   publish-release:
+    if: vars.PRODUCTION_ENABLED == 'true'
     needs: [qualify,production]
     runs-on: ubuntu-latest
     steps:
