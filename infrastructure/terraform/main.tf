@@ -1,5 +1,10 @@
 data "cloudflare_ip_ranges" "edge" {}
 
+data "cloudflare_zone" "primary" {
+  name       = var.cloudflare_zone_name
+  account_id = var.cloudflare_account_id
+}
+
 locals {
   prefix = "raeburn-talent-${var.environment}"
   tags = [
@@ -163,7 +168,7 @@ resource "cloudflare_r2_bucket" "documents" {
 }
 
 resource "cloudflare_record" "api" {
-  zone_id = var.cloudflare_zone_id
+  zone_id = data.cloudflare_zone.primary.id
   name    = var.environment == "production" ? "api.talent" : "api.staging.talent"
   type    = "A"
   content = digitalocean_droplet.runtime.ipv4_address
@@ -171,7 +176,7 @@ resource "cloudflare_record" "api" {
 }
 
 resource "cloudflare_record" "hooks" {
-  zone_id = var.cloudflare_zone_id
+  zone_id = data.cloudflare_zone.primary.id
   name    = var.environment == "production" ? "hooks.talent" : "hooks.staging.talent"
   type    = "A"
   content = digitalocean_droplet.runtime.ipv4_address
@@ -179,7 +184,7 @@ resource "cloudflare_record" "hooks" {
 }
 
 resource "cloudflare_record" "talent_admin" {
-  zone_id = var.cloudflare_zone_id
+  zone_id = data.cloudflare_zone.primary.id
   name    = var.environment == "production" ? "talent" : "talent.staging"
   type    = "CNAME"
   content = "cname.vercel-dns.com"
@@ -187,7 +192,7 @@ resource "cloudflare_record" "talent_admin" {
 }
 
 resource "cloudflare_record" "careers" {
-  zone_id = var.cloudflare_zone_id
+  zone_id = data.cloudflare_zone.primary.id
   name    = var.environment == "production" ? "careers" : "careers.staging"
   type    = "CNAME"
   content = "cname.vercel-dns.com"
