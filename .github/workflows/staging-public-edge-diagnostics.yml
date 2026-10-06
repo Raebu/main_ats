@@ -1,0 +1,74 @@
+name: Staging public edge diagnostics
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/staging-public-edge-diagnostics.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Diagnose DNS, TLS and HTTP edge
+        shell: bash
+        run: |
+          set +e
+          host="api.staging.talent.theraeburngroup.com"
+          url="https://$host/health"
+
+          echo "=== SYSTEM RESOLVER ==="
+          getent ahosts "$host"
+          echo "getent_rc=$?"
+
+          echo
+          echo "=== PYTHON DNS ==="
+          python3 - "$host" <<'PY'
+          import socket, sys
+          host=sys.argv[1]
+          try:
+              for item in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM):
+                  print(item)
+          except Exception as exc:
+              print(type(exc).__name__, repr(exc))
+          PY
+
+          echo
+          echo "=== CLOUDFLARE DNS OVER HTTPS A ==="
+          curl -sS --max-time 15             -H 'accept: application/dns-json'             "https://cloudflare-dns.com/dns-query?name=$host&type=A"
+          echo
+
+          echo
+          echo "=== CLOUDFLARE DNS OVER HTTPS AAAA ==="
+          curl -sS --max-time 15             -H 'accept: application/dns-json'             "https://cloudflare-dns.com/dns-query?name=$host&type=AAAA"
+          echo
+
+          echo
+          echo "=== TLS HANDSHAKE ==="
+          timeout 20s openssl s_client             -connect "$host:443"             -servername "$host"             -brief </dev/null
+          echo "openssl_rc=$?"
+
+          echo
+          echo "=== HTTPS STRICT ==="
+          curl -v             --connect-timeout 10             --max-time 20             --retry 0             "$url"             -o /tmp/strict-body.txt
+          strict_rc=$?
+          echo "curl_strict_rc=$strict_rc"
+          test -f /tmp/strict-body.txt && head -c 2000 /tmp/strict-body.txt
+          echo
+
+          echo
+          echo "=== HTTPS INSECURE DIAGNOSTIC ==="
+          curl -vk             --connect-timeout 10             --max-time 20             --retry 0             "$url"             -o /tmp/insecure-body.txt
+          insecure_rc=$?
+          echo "curl_insecure_rc=$insecure_rc"
+          test -f /tmp/insecure-body.txt && head -c 2000 /tmp/insecure-body.txt
+          echo
+
+          echo
+          echo "=== RESULT ==="
+          echo "strict=$strict_rc insecure=$insecure_rc"
+          exit 0
