@@ -200,7 +200,7 @@ resource "cloudflare_record" "careers" {
 }
 
 resource "cloudflare_ruleset" "talent_waf" {
-  zone_id     = var.cloudflare_zone_id
+  zone_id     = data.cloudflare_zone.primary.id
   name        = "${local.prefix}-waf"
   description = "Raeburn Talent production edge protections"
   kind        = "zone"
