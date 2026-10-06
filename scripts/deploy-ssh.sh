@@ -209,4 +209,24 @@ if [ "${ROLLBACK:-false}" != "true" ]; then
   fi
 fi
 
-"${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml up -d --remove-orphans && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml ps"
+"${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml up -d --remove-orphans"
+
+runtime_ready=false
+for attempt in $(seq 1 60); do
+  if timeout 15s "${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml exec -T edge-api node -e 'fetch(\"http://127.0.0.1:4100/health\",{signal:AbortSignal.timeout(3000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))'" >/dev/null 2>&1; then
+    runtime_ready=true
+    echo "Staging runtime API is internally ready."
+    break
+  fi
+  echo "Waiting for staging runtime API readiness (attempt $attempt/60)..."
+  sleep 5
+done
+
+if [ "$runtime_ready" != "true" ]; then
+  echo "Runtime API did not become ready within 5 minutes."
+  "${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml ps" || true
+  "${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml logs --tail=200 edge-api recruitment-core platform-control intelligence-data" || true
+  exit 1
+fi
+
+"${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml ps"
