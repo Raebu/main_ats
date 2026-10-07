@@ -53,27 +53,6 @@ resource "digitalocean_droplet" "runtime" {
   EOF
 }
 
-resource "digitalocean_droplet" "nats" {
-  name       = "${local.prefix}-nats"
-  image      = "ubuntu-24-04-x64"
-  region     = var.region
-  size       = var.nats_size
-  vpc_uuid   = digitalocean_vpc.platform.id
-  ssh_keys   = var.ssh_key_fingerprints
-  monitoring = true
-  backups    = true
-  tags       = local.tags
-
-  user_data = <<-EOF
-    #!/bin/bash
-    set -eux
-    apt-get update
-    apt-get install -y docker.io
-    mkdir -p /var/lib/nats
-    docker run -d --restart=always --name nats -p 4222:4222 -p 8222:8222 -v /var/lib/nats:/data nats:2-alpine -js -sd /data -m 8222
-  EOF
-}
-
 resource "digitalocean_firewall" "runtime" {
   name        = "${local.prefix}-runtime-fw"
   droplet_ids = [digitalocean_droplet.runtime.id]
@@ -135,50 +114,6 @@ resource "digitalocean_firewall" "runtime" {
   outbound_rule {
     protocol              = "tcp"
     port_range            = "587"
-    destination_addresses = ["0.0.0.0/0", "::/0"]
-  }
-}
-
-resource "digitalocean_firewall" "nats" {
-  name        = "${local.prefix}-nats-fw"
-  droplet_ids = [digitalocean_droplet.nats.id]
-
-  inbound_rule {
-    protocol         = "tcp"
-    port_range       = "4222"
-    source_addresses = [digitalocean_vpc.platform.ip_range]
-  }
-
-  inbound_rule {
-    protocol         = "tcp"
-    port_range       = "8222"
-    source_addresses = [digitalocean_vpc.platform.ip_range]
-  }
-
-  outbound_rule {
-    protocol              = "tcp"
-    port_range            = "1-65535"
-    destination_addresses = [digitalocean_vpc.platform.ip_range]
-  }
-
-  # trivy:ignore:DIG-0003 -- NATS host requires HTTPS egress to pull and refresh the pinned container image.
-  outbound_rule {
-    protocol              = "tcp"
-    port_range            = "443"
-    destination_addresses = ["0.0.0.0/0", "::/0"]
-  }
-
-  # trivy:ignore:DIG-0003 -- DNS egress is required to resolve the restricted HTTPS container registry endpoint.
-  outbound_rule {
-    protocol              = "udp"
-    port_range            = "53"
-    destination_addresses = ["0.0.0.0/0", "::/0"]
-  }
-
-  # trivy:ignore:DIG-0003 -- TCP DNS fallback is required for standards-compliant registry resolution.
-  outbound_rule {
-    protocol              = "tcp"
-    port_range            = "53"
     destination_addresses = ["0.0.0.0/0", "::/0"]
   }
 }
@@ -266,17 +201,3 @@ resource "digitalocean_monitor_alert" "runtime_cpu" {
   }
 }
 
-resource "digitalocean_monitor_alert" "nats_cpu" {
-  count       = var.enable_provider_email_alerts && length(var.alert_emails) > 0 ? 1 : 0
-  type        = "v1/insights/droplet/cpu"
-  description = "${local.prefix} NATS CPU"
-  compare     = "GreaterThan"
-  value       = var.alert_cpu_threshold
-  window      = var.alert_window
-  enabled     = true
-  entities    = [digitalocean_droplet.nats.id]
-
-  alerts {
-    email = var.alert_emails
-  }
-}

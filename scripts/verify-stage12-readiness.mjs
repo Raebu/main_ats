@@ -8,7 +8,7 @@ expect("infrastructure/production/Dockerfile.malware-scanner",["clamav","freshcl
 expect("services/documents/src/worker.ts",["MALWARE_SCANNER_URL","SCAN_PENDING","development-bypass"]);
 expect("services/communications/src/worker.ts",["SMTP_HOST","SMTP_FALLBACK_HOST","smtp-primary"]);
 expect("services/identity/src/index.ts",["identity_providers","openid-configuration","clientSecretEnv","/sso/"]);
-expect("infrastructure/terraform/main.tf",["digitalocean_database_cluster","-js -sd /data","cloudflare_r2_bucket","cloudflare_record","cloudflare_ruleset","digitalocean_monitor_alert"]);
+expect("infrastructure/terraform/main.tf",["digitalocean_database_cluster","cloudflare_r2_bucket","cloudflare_record","cloudflare_ruleset","digitalocean_monitor_alert"]);\nexpect("infrastructure/production/docker-compose.production.yml",["nats:2-alpine","-js","-sd","/data","nats_data","nats://nats:4222"]);
 expect("infrastructure/production/deployment-units.json",["edge-api","recruitment-core","platform-control","malware-scanner"]);
 expect("scripts/verify-data-parity.mjs",["LEGACY_DATABASE_URL","delta"]);
 expect("scripts/dual-read-compare.mjs",["LEGACY_SNAPSHOT_URL","MIGRATION_READ_SECRET","missingJobs"]);

@@ -55,10 +55,6 @@ variable "runtime_size" {
   default = "s-2vcpu-4gb"
 }
 
-variable "nats_size" {
-  type    = string
-  default = "s-1vcpu-2gb"
-}
 
 variable "owner" {
   type    = string
