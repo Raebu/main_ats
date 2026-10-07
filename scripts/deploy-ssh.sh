@@ -219,7 +219,11 @@ echo "Quiescing existing ATS application containers before image delivery..."
       exit 1
     fi
   fi
-  timeout --signal=TERM --kill-after=10s 90s docker compose -f docker-compose.production.yml stop edge-api recruitment-core selection experience platform-control intelligence-data malware-scanner caddy || true
+  test -f .release.current
+  set -a
+  . ./.release.current
+  set +a
+  timeout --signal=TERM --kill-after=10s 90s docker compose -f docker-compose.production.yml stop edge-api recruitment-core selection experience platform-control intelligence-data malware-scanner caddy
   echo "Runtime memory after quiescing existing stack:"
   free -m
 '
