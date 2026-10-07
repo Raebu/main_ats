@@ -193,6 +193,7 @@ jobs:
           DEPLOY_SSH_FINGERPRINT: MD5:40:5c:b9:ce:22:0e:16:26:48:09:0e:71:09:69:77:a5
           DATABASE_BASE_URL_OVERRIDE: ${{ env.DATABASE_BASE_URL_OVERRIDE }}
           NATS_URL_OVERRIDE: ${{ env.NATS_URL_OVERRIDE }}
+          RUNTIME_PRIVATE_IP: ${{ env.RUNTIME_PRIVATE_IP }}
           RUNTIME_ENV_FILE: ${{ secrets.RUNTIME_ENV_FILE }}
           PUBLIC_BASE_URL: https://api-staging-talent.theraeburngroup.com
           UNIT_IMAGE_REF: ${{ needs.image.outputs.unit_image_ref }}
