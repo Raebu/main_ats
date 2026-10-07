@@ -103,6 +103,7 @@ resource "digitalocean_firewall" "runtime" {
   }
 
   # trivy:ignore:DIG-0003 -- internet destination is required; egress is restricted to this single protocol/port only.
+  # trivy:ignore:DIG-0003 -- TCP DNS fallback is required for standards-compliant registry resolution.
   outbound_rule {
     protocol              = "tcp"
     port_range            = "53"
@@ -167,7 +168,7 @@ resource "digitalocean_firewall" "nats" {
     destination_addresses = ["0.0.0.0/0", "::/0"]
   }
 
-  # DNS is required to resolve the container registry endpoint.
+  # trivy:ignore:DIG-0003 -- DNS egress is required to resolve the restricted HTTPS container registry endpoint.
   outbound_rule {
     protocol              = "udp"
     port_range            = "53"
