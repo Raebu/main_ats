@@ -152,14 +152,10 @@ export async function writeOutbox(client:pg.PoolClient,event:DomainEvent){
   );
 }
 export async function ensureOutbox(){
-  await pool.query(`create table if not exists outbox_events(
-    id text primary key,event_type text not null,payload jsonb not null,created_at timestamptz not null default now(),
-    published_at timestamptz,retry_count int not null default 0,last_error text,
-    lease_owner text,lease_until timestamptz
-  )`);
-  await pool.query("alter table outbox_events add column if not exists lease_owner text");
-  await pool.query("alter table outbox_events add column if not exists lease_until timestamptz");
-  await pool.query("create index if not exists outbox_ready_idx on outbox_events(created_at) where published_at is null");
+  const result=await pool.query("select to_regclass('public.outbox_events') as relation");
+  if(!result.rows[0]?.relation){
+    throw new Error("OUTBOX_SCHEMA_NOT_MIGRATED");
+  }
 }
 export async function flushOutbox(limit=100){
   await ensureOutbox();
