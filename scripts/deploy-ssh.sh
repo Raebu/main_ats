@@ -275,15 +275,15 @@ fi
 
 echo "Preparing runtime memory headroom..."
 "${SSH[@]}" 'set -e
-  total_kb=$(awk "/MemTotal:/ {print $2}" /proc/meminfo)
-  swap_kb=$(awk "/SwapTotal:/ {print $2}" /proc/meminfo)
-  avail_kb=$(awk "/MemAvailable:/ {print $2}" /proc/meminfo)
+  total_kb=$(grep "^MemTotal:" /proc/meminfo | tr -s " " | cut -d" " -f2)
+  swap_kb=$(grep "^SwapTotal:" /proc/meminfo | tr -s " " | cut -d" " -f2)
+  avail_kb=$(grep "^MemAvailable:" /proc/meminfo | tr -s " " | cut -d" " -f2)
   echo "Runtime memory before deploy: total=$((total_kb/1024))MiB available=$((avail_kb/1024))MiB swap=$((swap_kb/1024))MiB"
 
   if [ "$swap_kb" -lt 2097152 ]; then
     swapfile=/swapfile
     target_mb=8192
-    free_mb=$(df -Pm / | awk "NR==2 {print $4}")
+    free_mb=$(df -Pm / | tail -1 | tr -s " " | cut -d" " -f4)
     if [ "$free_mb" -lt 12288 ]; then
       echo "Insufficient disk headroom to create protective swap: ${free_mb}MiB free."
       exit 1
