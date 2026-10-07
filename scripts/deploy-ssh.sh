@@ -273,6 +273,42 @@ if [ "${ROLLBACK:-false}" != "true" ]; then
   fi
 fi
 
+echo "Preparing runtime memory headroom..."
+"${SSH[@]}" 'set -e
+  total_kb=$(awk "/MemTotal:/ {print $2}" /proc/meminfo)
+  swap_kb=$(awk "/SwapTotal:/ {print $2}" /proc/meminfo)
+  avail_kb=$(awk "/MemAvailable:/ {print $2}" /proc/meminfo)
+  echo "Runtime memory before deploy: total=$((total_kb/1024))MiB available=$((avail_kb/1024))MiB swap=$((swap_kb/1024))MiB"
+
+  if [ "$swap_kb" -lt 2097152 ]; then
+    swapfile=/swapfile
+    target_mb=8192
+    free_mb=$(df -Pm / | awk "NR==2 {print $4}")
+    if [ "$free_mb" -lt 12288 ]; then
+      echo "Insufficient disk headroom to create protective swap: ${free_mb}MiB free."
+      exit 1
+    fi
+    if swapon --show=NAME --noheadings | grep -Fxq "$swapfile"; then
+      swapoff "$swapfile"
+    fi
+    rm -f "$swapfile"
+    if command -v fallocate >/dev/null 2>&1; then
+      fallocate -l "${target_mb}M" "$swapfile"
+    else
+      dd if=/dev/zero of="$swapfile" bs=1M count="$target_mb" status=none
+    fi
+    chmod 600 "$swapfile"
+    mkswap "$swapfile" >/dev/null
+    swapon "$swapfile"
+    grep -qE "^/swapfile[[:space:]]" /etc/fstab || echo "/swapfile none swap sw 0 0" >> /etc/fstab
+    sysctl -w vm.swappiness=10 >/dev/null
+    mkdir -p /etc/sysctl.d
+    sed -i "/^vm.swappiness=/d" /etc/sysctl.d/99-raeburn-talent.conf 2>/dev/null || true
+    echo "vm.swappiness=10" >> /etc/sysctl.d/99-raeburn-talent.conf
+  fi
+
+  free -m
+  df -h /'
 "${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml up -d --remove-orphans"
 "${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml up -d --no-deps --force-recreate caddy"
 
