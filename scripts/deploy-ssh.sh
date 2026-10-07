@@ -259,7 +259,7 @@ PY
     sed -i '/^NATS_URL=/d' .env.production
     printf 'NATS_URL=nats://%s:14222\\n' \"\$gateway\" >> .env.production
     echo \"ATS containers will use NATS relay at \$gateway:14222 -> ${nats_host}:${nats_port}.\"
-    timeout 5 bash -lc \"</dev/tcp/\$gateway/14222\"\n    echo \"Host-local NATS relay is accepting connections.\"\n    systemctl --no-pager --full status raeburn-talent-nats-relay.socket | head -30
+    systemctl is-active --quiet raeburn-talent-nats-relay.socket\n    timeout 5 bash -lc \"exec 3<>/dev/tcp/\$gateway/14222; exec 3<&-; exec 3>&-\"\n    echo \"Host-local NATS relay is accepting connections.\"\n    systemctl --no-pager --full status raeburn-talent-nats-relay.socket | head -30
   "
 fi
 
