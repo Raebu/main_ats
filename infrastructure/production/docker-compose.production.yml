@@ -4,9 +4,20 @@ x-unit: &unit
   restart: unless-stopped
   env_file: .env.production
   networks: [talent]
+  depends_on:
+    nats:
+      condition: service_started
   stop_grace_period: 30s
 
 services:
+  nats:
+    image: nats:2-alpine
+    restart: unless-stopped
+    command: ["-js", "-sd", "/data"]
+    volumes:
+      - nats_data:/data
+    networks: [talent]
+
   edge-api:
     <<: *unit
     environment:
@@ -103,5 +114,6 @@ networks:
     driver: bridge
 
 volumes:
+  nats_data:
   caddy_data:
   caddy_config:

@@ -119,7 +119,8 @@ PY
   printf 'API_DOMAIN=%s\n' "$api_domain" >> "$tmp_env"
 fi
 if [ -n "${DATABASE_BASE_URL_OVERRIDE:-}" ]; then printf 'DATABASE_BASE_URL=%s\n' "$DATABASE_BASE_URL_OVERRIDE" >> "$tmp_env"; fi
-if [ -n "${NATS_URL_OVERRIDE:-}" ]; then printf 'NATS_URL=%s\n' "$NATS_URL_OVERRIDE" >> "$tmp_env"; fi
+sed -i '/^NATS_URL=/d' "$tmp_env"
+printf 'NATS_URL=nats://nats:4222\n' >> "$tmp_env"
 cat "$tmp_env" | "${SSH[@]}" 'umask 077; cat > /opt/raeburn-talent/.env.production'
 rm -f "$tmp_env"
 
@@ -173,33 +174,6 @@ echo "Preparing runtime memory headroom..."
 
   free -m
   df -h /'
-if [ -n "${NATS_URL_OVERRIDE:-}" ]; then
-  read -r nats_host nats_port < <(python3 - <<'PY'
-import os
-from urllib.parse import urlparse
-
-u = urlparse(os.environ["NATS_URL_OVERRIDE"])
-if not u.hostname:
-    raise SystemExit("NATS_URL_OVERRIDE does not contain a hostname")
-print(u.hostname, u.port or 4222)
-PY
-  )
-  echo "Checking private NATS connectivity at ${nats_host}:${nats_port}..."
-  nats_ready=false
-  for attempt in $(seq 1 24); do
-    if timeout 6s "${SSH[@]}" "timeout 3 bash -lc '</dev/tcp/${nats_host}/${nats_port}'" >/dev/null 2>&1; then
-      nats_ready=true
-      echo "Private NATS endpoint is reachable."
-      break
-    fi
-    echo "Waiting for private NATS endpoint (attempt ${attempt}/24)..."
-    sleep 5
-  done
-  if [ "$nats_ready" != "true" ]; then
-    echo "Private NATS endpoint ${nats_host}:${nats_port} is not reachable from the runtime VPC."
-    exit 1
-  fi
-fi
 echo "Quiescing existing ATS application containers before image delivery..."
 "${SSH[@]}" 'set -e
   cd /opt/raeburn-talent
@@ -227,49 +201,6 @@ echo "Quiescing existing ATS application containers before image delivery..."
   echo "Runtime memory after quiescing existing stack:"
   free -m
 '
-if [ -n "${NATS_URL_OVERRIDE:-}" ]; then
-  read -r nats_host nats_port < <(python3 - <<'PY'
-import os
-from urllib.parse import urlparse
-u=urlparse(os.environ["NATS_URL_OVERRIDE"])
-print(u.hostname, u.port or 4222)
-PY
-  )
-  echo "Preparing host-local NATS relay for ATS containers..."
-  relay_script=$(mktemp)
-  cat > "$relay_script" <<'REMOTE_RELAY'
-set -e
-cd /opt/raeburn-talent
-docker network inspect raeburn-talent_talent >/dev/null 2>&1 || docker network create raeburn-talent_talent >/dev/null
-subnet=$(docker network inspect raeburn-talent_talent --format '{{(index .IPAM.Config 0).Subnet}}')
-gateway=$(docker network inspect raeburn-talent_talent --format '{{(index .IPAM.Config 0).Gateway}}')
-test -n "$subnet"
-test -n "$gateway"
-proxyd=$(command -v systemd-socket-proxyd || true)
-if [ -z "$proxyd" ]; then
-  for candidate in /usr/lib/systemd/systemd-socket-proxyd /lib/systemd/systemd-socket-proxyd; do
-    if [ -x "$candidate" ]; then proxyd=$candidate; break; fi
-  done
-fi
-test -n "$proxyd"
-printf '[Unit]\nDescription=Raeburn Talent NATS relay socket\n\n[Socket]\nListenStream=%s:14222\nNoDelay=true\nFreeBind=true\n\n[Install]\nWantedBy=sockets.target\n' "$gateway" | sudo tee /etc/systemd/system/raeburn-talent-nats-relay.socket >/dev/null
-printf '[Unit]\nDescription=Raeburn Talent NATS relay\nRequires=raeburn-talent-nats-relay.socket\nAfter=network-online.target\n\n[Service]\nExecStart=%s %s:%s\nPrivateTmp=true\nNoNewPrivileges=true\n' "$proxyd" "$NATS_HOST" "$NATS_PORT" | sudo tee /etc/systemd/system/raeburn-talent-nats-relay.service >/dev/null
-sudo systemctl daemon-reload
-sudo systemctl enable --now raeburn-talent-nats-relay.socket
-sudo systemctl restart raeburn-talent-nats-relay.socket
-iptables -C INPUT -s "$subnet" -d "$gateway/32" -p tcp --dport 14222 -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -s "$subnet" -d "$gateway/32" -p tcp --dport 14222 -j ACCEPT
-sed -i '/^NATS_URL=/d' .env.production
-printf 'NATS_URL=nats://%s:14222\n' "$gateway" >> .env.production
-echo "ATS containers will use NATS relay at $gateway:14222 -> $NATS_HOST:$NATS_PORT."
-systemctl is-active --quiet raeburn-talent-nats-relay.socket
-timeout 5 bash -lc "exec 3<>/dev/tcp/$gateway/14222; exec 3<&-; exec 3>&-"
-echo "Host-local NATS relay is accepting connections."
-systemctl --no-pager --full status raeburn-talent-nats-relay.socket | head -30
-REMOTE_RELAY
-  "${SSH[@]}" "NATS_HOST='${nats_host}' NATS_PORT='${nats_port}' bash -s" < "$relay_script"
-  rm -f "$relay_script"
-fi
-
 if [ "${ROLLBACK:-false}" != "true" ]; then
   images_ready=false
 
@@ -406,24 +337,26 @@ if [ "${ROLLBACK:-false}" != "true" ]; then
   fi
 fi
 
-if [ -n "${NATS_URL_OVERRIDE:-}" ]; then
-  echo "Verifying NATS from inside the ATS Docker network..."
-  container_nats_ready=false
-  for attempt in $(seq 1 12); do
-    if timeout 12s "${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker run --rm --network raeburn-talent_talent --env-file .env.production '${UNIT_IMAGE_REF}' node -e 'const net=require("node:net");const u=new URL(process.env.NATS_URL);const s=net.createConnection({host:u.hostname,port:Number(u.port||4222)});const t=setTimeout(()=>{s.destroy();process.exit(1)},3000);s.once("connect",()=>{clearTimeout(t);s.end();process.exit(0)});s.once("error",()=>{clearTimeout(t);process.exit(1)})'" >/dev/null 2>&1; then
-      container_nats_ready=true
-      echo "NATS is reachable from the ATS Docker network."
-      break
-    fi
-    echo "Waiting for Docker-to-NATS connectivity (attempt ${attempt}/12)..."
-    sleep 3
-  done
-  if [ "$container_nats_ready" != "true" ]; then
-    echo "NATS is not reachable from the ATS Docker network."
-    exit 1
-  fi
-fi
+echo "Starting persistent NATS on the ATS Docker network..."
+"${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml up -d nats"
 
+echo "Verifying NATS from inside the ATS Docker network..."
+container_nats_ready=false
+for attempt in $(seq 1 20); do
+  if timeout 12s "${SSH[@]}" "cd /opt/raeburn-talent && docker run --rm --network raeburn-talent_talent --env NATS_URL=nats://nats:4222 '${UNIT_IMAGE_REF}' node -e 'const net=require("node:net");const u=new URL(process.env.NATS_URL);const s=net.createConnection({host:u.hostname,port:Number(u.port||4222)});const t=setTimeout(()=>{s.destroy();process.exit(1)},3000);s.once("connect",()=>{clearTimeout(t);s.end();process.exit(0)});s.once("error",()=>{clearTimeout(t);process.exit(1)})'" >/dev/null 2>&1; then
+    container_nats_ready=true
+    echo "NATS is reachable from the ATS Docker network."
+    break
+  fi
+  echo "Waiting for local Docker NATS (attempt ${attempt}/20)..."
+  sleep 2
+done
+if [ "$container_nats_ready" != "true" ]; then
+  echo "Local NATS is not reachable from the ATS Docker network."
+  "${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml ps nats" || true
+  "${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml logs --tail=100 nats" || true
+  exit 1
+fi
 "${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml up -d --remove-orphans"
 "${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml up -d --no-deps --force-recreate caddy"
 
