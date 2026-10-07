@@ -385,6 +385,24 @@ if [ "${ROLLBACK:-false}" != "true" ]; then
   fi
 fi
 
+if [ -n "${NATS_URL_OVERRIDE:-}" ]; then
+  echo "Verifying NATS from inside the ATS Docker network..."
+  container_nats_ready=false
+  for attempt in $(seq 1 12); do
+    if timeout 12s "${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker run --rm --network raeburn-talent_talent --env-file .env.production '${UNIT_IMAGE_REF}' node -e 'const net=require("node:net");const u=new URL(process.env.NATS_URL);const s=net.createConnection({host:u.hostname,port:Number(u.port||4222)});const t=setTimeout(()=>{s.destroy();process.exit(1)},3000);s.once("connect",()=>{clearTimeout(t);s.end();process.exit(0)});s.once("error",()=>{clearTimeout(t);process.exit(1)})'" >/dev/null 2>&1; then
+      container_nats_ready=true
+      echo "NATS is reachable from the ATS Docker network."
+      break
+    fi
+    echo "Waiting for Docker-to-NATS connectivity (attempt ${attempt}/12)..."
+    sleep 3
+  done
+  if [ "$container_nats_ready" != "true" ]; then
+    echo "NATS is not reachable from the ATS Docker network."
+    exit 1
+  fi
+fi
+
 "${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml up -d --remove-orphans"
 "${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml up -d --no-deps --force-recreate caddy"
 
