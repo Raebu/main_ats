@@ -3,10 +3,29 @@ x-unit: &unit
   image: ${UNIT_IMAGE_REF}
   restart: unless-stopped
   env_file: .env.production
+  environment:
+    NATS_URL: nats://nats:4222
   networks: [talent]
+  depends_on:
+    nats:
+      condition: service_healthy
   stop_grace_period: 30s
 
 services:
+  nats:
+    image: nats:2-alpine
+    restart: unless-stopped
+    command: ["-js", "-sd", "/data"]
+    volumes:
+      - nats_data:/data
+    networks: [talent]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8222/healthz >/dev/null 2>&1 || nc -z 127.0.0.1 4222"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
   edge-api:
     <<: *unit
     environment:
@@ -103,5 +122,6 @@ networks:
     driver: bridge
 
 volumes:
+  nats_data:
   caddy_data:
   caddy_config:
