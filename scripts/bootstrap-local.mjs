@@ -1,4 +1,4 @@
-import fs from "node:fs/promises";import path from "node:path";import pg from "pg";
+import fs from "node:fs/promises";import path from "node:path";import{execFileSync}from"node:child_process";import pg from "pg";
 const services=["jobs","candidates","applications","attribution","workflow","documents","communications","distribution","identity","organisations","audit","notifications","privacy","interviews","assessments","offers","talent-pools","careers-gateway","configuration","feature-flags","campaigns","webhooks","integrations","analytics","search","intelligence","scheduler","onboarding","platform"];
 const adminUrl=process.env.LOCAL_POSTGRES_ADMIN_URL||"postgresql://postgres:postgres@localhost:5433/postgres";
 const admin=new pg.Client({connectionString:adminUrl});await admin.connect();
