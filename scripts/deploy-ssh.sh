@@ -266,7 +266,7 @@ timeout 5 bash -lc "exec 3<>/dev/tcp/$gateway/14222; exec 3<&-; exec 3>&-"
 echo "Host-local NATS relay is accepting connections."
 systemctl --no-pager --full status raeburn-talent-nats-relay.socket | head -30
 REMOTE_RELAY
-  NATS_HOST="$nats_host" NATS_PORT="$nats_port" "${SSH[@]}" 'NATS_HOST="$1" NATS_PORT="$2" bash -s' -- "$nats_host" "$nats_port" < "$relay_script"
+  "${SSH[@]}" "NATS_HOST='${nats_host}' NATS_PORT='${nats_port}' bash -s" < "$relay_script"
   rm -f "$relay_script"
 fi
 
