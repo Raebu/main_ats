@@ -227,6 +227,28 @@ echo "Quiescing existing ATS application containers before image delivery..."
   echo "Runtime memory after quiescing existing stack:"
   free -m
 '
+if [ -n "${NATS_URL_OVERRIDE:-}" ] && [ -n "${RUNTIME_PRIVATE_IP:-}" ]; then
+  read -r nats_host nats_port < <(python3 - <<'PY'
+import os
+from urllib.parse import urlparse
+u=urlparse(os.environ["NATS_URL_OVERRIDE"])
+print(u.hostname, u.port or 4222)
+PY
+  )
+  echo "Preparing Docker-to-VPC NATS routing..."
+  "${SSH[@]}" "set -e
+    cd /opt/raeburn-talent
+    set -a
+    . ./.release.current
+    set +a
+    docker compose -f docker-compose.production.yml create >/dev/null
+    subnet=\$(docker network inspect raeburn-talent_talent --format '{{(index .IPAM.Config 0).Subnet}}')
+    test -n \"\$subnet\"
+    iptables -t nat -C POSTROUTING -s \"\$subnet\" -d '${nats_host}/32' -j SNAT --to-source '${RUNTIME_PRIVATE_IP}' 2>/dev/null || iptables -t nat -A POSTROUTING -s \"\$subnet\" -d '${nats_host}/32' -j SNAT --to-source '${RUNTIME_PRIVATE_IP}'
+    echo \"Docker subnet \$subnet routed to NATS through '${RUNTIME_PRIVATE_IP}'.\"
+  "
+fi
+
 if [ "${ROLLBACK:-false}" != "true" ]; then
   images_ready=false
 
