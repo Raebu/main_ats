@@ -238,10 +238,7 @@ PY
   echo "Preparing Docker-to-VPC NATS routing..."
   "${SSH[@]}" "set -e
     cd /opt/raeburn-talent
-    set -a
-    . ./.release.current
-    set +a
-    docker compose -f docker-compose.production.yml create >/dev/null
+    docker network inspect raeburn-talent_talent >/dev/null 2>&1 || docker network create raeburn-talent_talent >/dev/null
     subnet=\$(docker network inspect raeburn-talent_talent --format '{{(index .IPAM.Config 0).Subnet}}')
     test -n \"\$subnet\"
     iptables -t nat -C POSTROUTING -s \"\$subnet\" -d '${nats_host}/32' -j SNAT --to-source '${RUNTIME_PRIVATE_IP}' 2>/dev/null || iptables -t nat -A POSTROUTING -s \"\$subnet\" -d '${nats_host}/32' -j SNAT --to-source '${RUNTIME_PRIVATE_IP}'
