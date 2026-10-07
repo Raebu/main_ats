@@ -173,6 +173,33 @@ echo "Preparing runtime memory headroom..."
 
   free -m
   df -h /'
+if [ -n "${NATS_URL_OVERRIDE:-}" ]; then
+  read -r nats_host nats_port < <(python3 - <<'PY'
+import os
+from urllib.parse import urlparse
+
+u = urlparse(os.environ["NATS_URL_OVERRIDE"])
+if not u.hostname:
+    raise SystemExit("NATS_URL_OVERRIDE does not contain a hostname")
+print(u.hostname, u.port or 4222)
+PY
+  )
+  echo "Checking private NATS connectivity at ${nats_host}:${nats_port}..."
+  nats_ready=false
+  for attempt in $(seq 1 24); do
+    if timeout 6s "${SSH[@]}" "timeout 3 bash -lc '</dev/tcp/${nats_host}/${nats_port}'" >/dev/null 2>&1; then
+      nats_ready=true
+      echo "Private NATS endpoint is reachable."
+      break
+    fi
+    echo "Waiting for private NATS endpoint (attempt ${attempt}/24)..."
+    sleep 5
+  done
+  if [ "$nats_ready" != "true" ]; then
+    echo "Private NATS endpoint ${nats_host}:${nats_port} is not reachable from the runtime VPC."
+    exit 1
+  fi
+fi
 echo "Quiescing existing ATS application containers before image delivery..."
 "${SSH[@]}" 'set -e
   cd /opt/raeburn-talent

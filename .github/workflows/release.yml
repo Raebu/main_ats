@@ -158,7 +158,7 @@ jobs:
           print(urllib.parse.quote(os.environ["DATABASE_RUNTIME_PASSWORD"], safe=""))
           PY
           )
-          dburl="postgresql://talent_runtime:${encoded}@${dbhost}:${dbport}?sslmode=require"
+          dburl="postgresql://talent_runtime:${encoded}@${dbhost}:${dbport}?sslmode=require&uselibpqcompat=true"
           echo "::add-mask::$dburl"
           echo "DEPLOY_HOST=$runtime" >> "$GITHUB_ENV"
           echo "DATABASE_BASE_URL_OVERRIDE=$dburl" >> "$GITHUB_ENV"
