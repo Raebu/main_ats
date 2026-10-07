@@ -159,6 +159,26 @@ resource "digitalocean_firewall" "nats" {
     port_range            = "1-65535"
     destination_addresses = [digitalocean_vpc.platform.ip_range]
   }
+
+  # trivy:ignore:DIG-0003 -- NATS host requires HTTPS egress to pull and refresh the pinned container image.
+  outbound_rule {
+    protocol              = "tcp"
+    port_range            = "443"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+
+  # DNS is required to resolve the container registry endpoint.
+  outbound_rule {
+    protocol              = "udp"
+    port_range            = "53"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+
+  outbound_rule {
+    protocol              = "tcp"
+    port_range            = "53"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
 }
 
 resource "cloudflare_r2_bucket" "documents" {
