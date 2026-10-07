@@ -8,7 +8,7 @@ x-unit: &unit
   networks: [talent]
   depends_on:
     nats:
-      condition: service_healthy
+      condition: service_started
   stop_grace_period: 30s
 
 services:
@@ -19,12 +19,6 @@ services:
     volumes:
       - nats_data:/data
     networks: [talent]
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8222/healthz >/dev/null 2>&1 || nc -z 127.0.0.1 4222"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
-      start_period: 5s
 
   edge-api:
     <<: *unit
