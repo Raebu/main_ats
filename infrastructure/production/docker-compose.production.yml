@@ -3,8 +3,6 @@ x-unit: &unit
   image: ${UNIT_IMAGE_REF}
   restart: unless-stopped
   env_file: .env.production
-  environment:
-    NATS_URL: nats://nats:4222
   networks: [talent]
   depends_on:
     nats:
