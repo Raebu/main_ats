@@ -250,7 +250,7 @@ PY
       done
     fi
     test -n \"\$proxyd\"
-    printf '[Unit]\\nDescription=Raeburn Talent NATS relay socket\\n\\n[Socket]\\nListenStream=0.0.0.0:14222\\nNoDelay=true\\nFreeBind=true\\n\\n[Install]\\nWantedBy=sockets.target\\n' | sudo tee /etc/systemd/system/raeburn-talent-nats-relay.socket >/dev/null
+    printf '[Unit]\\nDescription=Raeburn Talent NATS relay socket\\n\\n[Socket]\\nListenStream=%s:14222\\nNoDelay=true\\nFreeBind=true\\n\\n[Install]\\nWantedBy=sockets.target\\n' "\$gateway" | sudo tee /etc/systemd/system/raeburn-talent-nats-relay.socket >/dev/null
     printf '[Unit]\\nDescription=Raeburn Talent NATS relay\\nRequires=raeburn-talent-nats-relay.socket\\nAfter=network-online.target\\n\\n[Service]\\nExecStart=%s ${nats_host}:${nats_port}\\nPrivateTmp=true\\nNoNewPrivileges=true\\n' \"\$proxyd\" | sudo tee /etc/systemd/system/raeburn-talent-nats-relay.service >/dev/null
     sudo systemctl daemon-reload
     sudo systemctl enable --now raeburn-talent-nats-relay.socket
@@ -259,7 +259,7 @@ PY
     sed -i '/^NATS_URL=/d' .env.production
     printf 'NATS_URL=nats://%s:14222\\n' \"\$gateway\" >> .env.production
     echo \"ATS containers will use NATS relay at \$gateway:14222 -> ${nats_host}:${nats_port}.\"
-    systemctl --no-pager --full status raeburn-talent-nats-relay.socket | head -30
+    timeout 5 bash -lc \"</dev/tcp/\$gateway/14222\"\n    echo \"Host-local NATS relay is accepting connections.\"\n    systemctl --no-pager --full status raeburn-talent-nats-relay.socket | head -30
   "
 fi
 
