@@ -337,13 +337,26 @@ if [ "${ROLLBACK:-false}" != "true" ]; then
   fi
 fi
 
+echo "Resetting stale ATS Docker network if it is no longer in use..."
+"${SSH[@]}" 'set -e
+  if docker network inspect raeburn-talent_talent >/dev/null 2>&1; then
+    attached=$(docker network inspect raeburn-talent_talent --format "{{len .Containers}}")
+    if [ "$attached" = "0" ]; then
+      docker network rm raeburn-talent_talent >/dev/null
+      echo "Removed unused stale ATS Docker network."
+    else
+      echo "ATS Docker network has $attached attached container(s); Compose will reconcile it."
+    fi
+  fi
+'
+
 echo "Starting persistent NATS on the ATS Docker network..."
 "${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker compose -f docker-compose.production.yml up -d nats"
 
 echo "Verifying NATS from inside the ATS Docker network..."
 container_nats_ready=false
 for attempt in $(seq 1 20); do
-  if timeout 12s "${SSH[@]}" "cd /opt/raeburn-talent && docker run --rm --network raeburn-talent_talent --env NATS_URL=nats://nats:4222 '${UNIT_IMAGE_REF}' node -e 'const net=require("node:net");const u=new URL(process.env.NATS_URL);const s=net.createConnection({host:u.hostname,port:Number(u.port||4222)});const t=setTimeout(()=>{s.destroy();process.exit(1)},3000);s.once("connect",()=>{clearTimeout(t);s.end();process.exit(0)});s.once("error",()=>{clearTimeout(t);process.exit(1)})'" >/dev/null 2>&1; then
+  if timeout 15s "${SSH[@]}" "cd /opt/raeburn-talent && nats_ip=\$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' raeburn-talent-nats-1) && test -n \"\$nats_ip\" && echo \"NATS container IP: \$nats_ip\" && docker network inspect raeburn-talent_talent --format '{{json .Containers}}' && docker run --rm --network raeburn-talent_talent --env NATS_URL=nats://nats:4222 '${UNIT_IMAGE_REF}' node -e 'const dns=require(\"node:dns\").promises;const net=require(\"node:net\");(async()=>{const a=await dns.lookup(\"nats\");console.log(\"resolved nats\",a.address);const s=net.createConnection({host:\"nats\",port:4222});const t=setTimeout(()=>{console.error(\"timeout\");s.destroy();process.exit(2)},3000);s.once(\"connect\",()=>{clearTimeout(t);console.log(\"connected\");s.end();process.exit(0)});s.once(\"error\",e=>{clearTimeout(t);console.error(e);process.exit(1)})})().catch(e=>{console.error(e);process.exit(3)})'" ; then
     container_nats_ready=true
     echo "NATS is reachable from the ATS Docker network."
     break
