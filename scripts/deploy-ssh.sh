@@ -240,9 +240,19 @@ PY
     cd /opt/raeburn-talent
     docker network inspect raeburn-talent_talent >/dev/null 2>&1 || docker network create raeburn-talent_talent >/dev/null
     subnet=\$(docker network inspect raeburn-talent_talent --format '{{(index .IPAM.Config 0).Subnet}}')
+    gateway=\$(docker network inspect raeburn-talent_talent --format '{{(index .IPAM.Config 0).Gateway}}')
     test -n \"\$subnet\"
-    iptables -t nat -C POSTROUTING -s \"\$subnet\" -d '${nats_host}/32' -j SNAT --to-source '${RUNTIME_PRIVATE_IP}' 2>/dev/null || iptables -t nat -A POSTROUTING -s \"\$subnet\" -d '${nats_host}/32' -j SNAT --to-source '${RUNTIME_PRIVATE_IP}'
-    echo \"Docker subnet \$subnet routed to NATS through '${RUNTIME_PRIVATE_IP}'.\"
+    test -n \"\$gateway\"
+    vpc_if=\$(ip route get '${nats_host}' | awk '{for(i=1;i<=NF;i++) if(\$i==\"dev\"){print \$(i+1); exit}}')
+    test -n \"\$vpc_if\"
+    sysctl -w net.ipv4.ip_forward=1 >/dev/null
+    iptables -C FORWARD -s \"\$subnet\" -d '${nats_host}/32' -o \"\$vpc_if\" -p tcp --dport ${nats_port} -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -s \"\$subnet\" -d '${nats_host}/32' -o \"\$vpc_if\" -p tcp --dport ${nats_port} -j ACCEPT
+    iptables -C FORWARD -d \"\$subnet\" -s '${nats_host}/32' -i \"\$vpc_if\" -p tcp --sport ${nats_port} -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -d \"\$subnet\" -s '${nats_host}/32' -i \"\$vpc_if\" -p tcp --sport ${nats_port} -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+    iptables -t nat -C POSTROUTING -s \"\$subnet\" -d '${nats_host}/32' -j SNAT --to-source '${RUNTIME_PRIVATE_IP}' 2>/dev/null || iptables -t nat -I POSTROUTING 1 -s \"\$subnet\" -d '${nats_host}/32' -j SNAT --to-source '${RUNTIME_PRIVATE_IP}'
+    echo \"Docker subnet \$subnet (gateway \$gateway) routed to NATS through ${RUNTIME_PRIVATE_IP} on \$vpc_if.\"
+    ip route get '${nats_host}'
+    iptables -S FORWARD | head -40
+    iptables -t nat -S POSTROUTING | head -40
   "
 fi
 
