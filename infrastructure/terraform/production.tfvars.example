@@ -3,4 +3,5 @@ region="lon1"
 postgres_nodes=2
 postgres_size="db-s-2vcpu-4gb"
 runtime_size="s-4vcpu-8gb"
-nats_size="s-2vcpu-4gb"
+
+ssh_key_fingerprints=["40:5c:b9:ce:22:0e:16:26:48:09:0e:71:09:69:77:a5"]
