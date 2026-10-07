@@ -175,6 +175,7 @@ resource "digitalocean_firewall" "nats" {
     destination_addresses = ["0.0.0.0/0", "::/0"]
   }
 
+  # trivy:ignore:DIG-0003 -- TCP DNS fallback is required for standards-compliant registry resolution.
   outbound_rule {
     protocol              = "tcp"
     port_range            = "53"
