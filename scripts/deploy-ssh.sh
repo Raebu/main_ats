@@ -227,6 +227,28 @@ echo "Quiescing existing ATS application containers before image delivery..."
   echo "Runtime memory after quiescing existing stack:"
   free -m
 '
+if [ -n "${NATS_URL_OVERRIDE:-}" ] && [ -n "${RUNTIME_PRIVATE_IP:-}" ]; then
+  read -r nats_host nats_port < <(python3 - <<'PY'
+import os
+from urllib.parse import urlparse
+u=urlparse(os.environ["NATS_URL_OVERRIDE"])
+print(u.hostname, u.port or 4222)
+PY
+  )
+  echo "Preparing Docker-to-VPC NATS routing..."
+  "${SSH[@]}" "set -e
+    cd /opt/raeburn-talent
+    set -a
+    . ./.release.current
+    set +a
+    docker compose -f docker-compose.production.yml create >/dev/null
+    subnet=\$(docker network inspect raeburn-talent_talent --format '{{(index .IPAM.Config 0).Subnet}}')
+    test -n \"\$subnet\"
+    iptables -t nat -C POSTROUTING -s \"\$subnet\" -d '${nats_host}/32' -j SNAT --to-source '${RUNTIME_PRIVATE_IP}' 2>/dev/null || iptables -t nat -A POSTROUTING -s \"\$subnet\" -d '${nats_host}/32' -j SNAT --to-source '${RUNTIME_PRIVATE_IP}'
+    echo \"Docker subnet \$subnet routed to NATS through '${RUNTIME_PRIVATE_IP}'.\"
+  "
+fi
+
 if [ "${ROLLBACK:-false}" != "true" ]; then
   images_ready=false
 
@@ -360,6 +382,24 @@ if [ "${ROLLBACK:-false}" != "true" ]; then
     echo "Archive transfer complete; verifying and importing deployment images..."
     timeout 720s "${SSH[@]}" "set -e; cd '${INCOMING_DIR}'; remote_sha=\$(cat part-* | sha256sum | cut -d' ' -f1); test \"\$remote_sha\" = '${archive_sha}'; timeout --signal=TERM --kill-after=20s 600s sh -c 'cat part-* | gzip -dc | docker load'; cd /opt/raeburn-talent; rm -rf '${INCOMING_DIR}'"
     rm -rf "$chunk_dir"
+  fi
+fi
+
+if [ -n "${NATS_URL_OVERRIDE:-}" ]; then
+  echo "Verifying NATS from inside the ATS Docker network..."
+  container_nats_ready=false
+  for attempt in $(seq 1 12); do
+    if timeout 12s "${SSH[@]}" "cd /opt/raeburn-talent && UNIT_IMAGE_REF='${UNIT_IMAGE_REF}' SCANNER_IMAGE_REF='${SCANNER_IMAGE_REF}' docker run --rm --network raeburn-talent_talent --env-file .env.production '${UNIT_IMAGE_REF}' node -e 'const net=require("node:net");const u=new URL(process.env.NATS_URL);const s=net.createConnection({host:u.hostname,port:Number(u.port||4222)});const t=setTimeout(()=>{s.destroy();process.exit(1)},3000);s.once("connect",()=>{clearTimeout(t);s.end();process.exit(0)});s.once("error",()=>{clearTimeout(t);process.exit(1)})'" >/dev/null 2>&1; then
+      container_nats_ready=true
+      echo "NATS is reachable from the ATS Docker network."
+      break
+    fi
+    echo "Waiting for Docker-to-NATS connectivity (attempt ${attempt}/12)..."
+    sleep 3
+  done
+  if [ "$container_nats_ready" != "true" ]; then
+    echo "NATS is not reachable from the ATS Docker network."
+    exit 1
   fi
 fi
 

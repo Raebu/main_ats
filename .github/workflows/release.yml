@@ -193,6 +193,7 @@ jobs:
           DEPLOY_SSH_FINGERPRINT: MD5:40:5c:b9:ce:22:0e:16:26:48:09:0e:71:09:69:77:a5
           DATABASE_BASE_URL_OVERRIDE: ${{ env.DATABASE_BASE_URL_OVERRIDE }}
           NATS_URL_OVERRIDE: ${{ env.NATS_URL_OVERRIDE }}
+          RUNTIME_PRIVATE_IP: ${{ env.RUNTIME_PRIVATE_IP }}
           RUNTIME_ENV_FILE: ${{ secrets.RUNTIME_ENV_FILE }}
           PUBLIC_BASE_URL: https://api-staging-talent.theraeburngroup.com
           UNIT_IMAGE_REF: ${{ needs.image.outputs.unit_image_ref }}
@@ -246,11 +247,11 @@ jobs:
           DATABASE_RUNTIME_PASSWORD: ${{ secrets.DATABASE_RUNTIME_PASSWORD }}
         run: |
           set -euo pipefail
-          runtime=$(doctl compute droplet list --format Name,PublicIPv4,PrivateIPv4 --no-header | awk '$1=="raeburn-talent-production-runtime"{print $2}')
+          read runtime runtime_private <<< "$(doctl compute droplet list --format Name,PublicIPv4,PrivateIPv4 --no-header | awk '$1=="raeburn-talent-production-runtime"{print $2, $3}')"
           nats=$(doctl compute droplet list --format Name,PublicIPv4,PrivateIPv4 --no-header | awk '$1=="raeburn-talent-production-nats"{print $3}')
           dbid=$(doctl databases list --format ID,Name --no-header | awk '$2=="raeburn-talent-production-postgres"{print $1}')
           read dbhost dbport <<< "$(doctl databases connection "$dbid" --private --format Host,Port --no-header)"
-          test -n "$runtime" && test -n "$nats" && test -n "$dbhost" && test -n "$dbport"
+          test -n "$runtime" && test -n "$runtime_private" && test -n "$nats" && test -n "$dbhost" && test -n "$dbport"
           encoded=$(python3 - <<'PY'
           import os, urllib.parse
           print(urllib.parse.quote(os.environ["DATABASE_RUNTIME_PASSWORD"], safe=""))
@@ -259,6 +260,7 @@ jobs:
           dburl="postgresql://talent_runtime:${encoded}@${dbhost}:${dbport}?sslmode=require&uselibpqcompat=true"
           echo "::add-mask::$dburl"
           echo "DEPLOY_HOST=$runtime" >> "$GITHUB_ENV"
+          echo "RUNTIME_PRIVATE_IP=$runtime_private" >> "$GITHUB_ENV"
           echo "DATABASE_BASE_URL_OVERRIDE=$dburl" >> "$GITHUB_ENV"
           echo "NATS_URL_OVERRIDE=nats://$nats:4222" >> "$GITHUB_ENV"
       - name: Open deploy-only SSH access
@@ -277,6 +279,7 @@ jobs:
           DEPLOY_SSH_FINGERPRINT: MD5:40:5c:b9:ce:22:0e:16:26:48:09:0e:71:09:69:77:a5
           DATABASE_BASE_URL_OVERRIDE: ${{ env.DATABASE_BASE_URL_OVERRIDE }}
           NATS_URL_OVERRIDE: ${{ env.NATS_URL_OVERRIDE }}
+          RUNTIME_PRIVATE_IP: ${{ env.RUNTIME_PRIVATE_IP }}
           RUNTIME_ENV_FILE: ${{ secrets.RUNTIME_ENV_FILE }}
           PUBLIC_BASE_URL: https://api-talent.theraeburngroup.com
           UNIT_IMAGE_REF: ${{ needs.image.outputs.unit_image_ref }}
