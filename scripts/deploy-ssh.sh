@@ -227,7 +227,7 @@ echo "Quiescing existing ATS application containers before image delivery..."
   echo "Runtime memory after quiescing existing stack:"
   free -m
 '
-if [ -n "${NATS_URL_OVERRIDE:-}" ] && [ -n "${RUNTIME_PRIVATE_IP:-}" ]; then
+if [ -n "${NATS_URL_OVERRIDE:-}" ]; then
   read -r nats_host nats_port < <(python3 - <<'PY'
 import os
 from urllib.parse import urlparse
@@ -235,7 +235,7 @@ u=urlparse(os.environ["NATS_URL_OVERRIDE"])
 print(u.hostname, u.port or 4222)
 PY
   )
-  echo "Preparing Docker-to-VPC NATS routing..."
+  echo "Preparing host-local NATS relay for ATS containers..."
   "${SSH[@]}" "set -e
     cd /opt/raeburn-talent
     docker network inspect raeburn-talent_talent >/dev/null 2>&1 || docker network create raeburn-talent_talent >/dev/null
@@ -243,16 +243,23 @@ PY
     gateway=\$(docker network inspect raeburn-talent_talent --format '{{(index .IPAM.Config 0).Gateway}}')
     test -n \"\$subnet\"
     test -n \"\$gateway\"
-    vpc_if=\$(ip route get '${nats_host}' | awk '{for(i=1;i<=NF;i++) if(\$i==\"dev\"){print \$(i+1); exit}}')
-    test -n \"\$vpc_if\"
-    sysctl -w net.ipv4.ip_forward=1 >/dev/null
-    iptables -C FORWARD -s \"\$subnet\" -d '${nats_host}/32' -o \"\$vpc_if\" -p tcp --dport ${nats_port} -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -s \"\$subnet\" -d '${nats_host}/32' -o \"\$vpc_if\" -p tcp --dport ${nats_port} -j ACCEPT
-    iptables -C FORWARD -d \"\$subnet\" -s '${nats_host}/32' -i \"\$vpc_if\" -p tcp --sport ${nats_port} -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -d \"\$subnet\" -s '${nats_host}/32' -i \"\$vpc_if\" -p tcp --sport ${nats_port} -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-    iptables -t nat -C POSTROUTING -s \"\$subnet\" -d '${nats_host}/32' -j SNAT --to-source '${RUNTIME_PRIVATE_IP}' 2>/dev/null || iptables -t nat -I POSTROUTING 1 -s \"\$subnet\" -d '${nats_host}/32' -j SNAT --to-source '${RUNTIME_PRIVATE_IP}'
-    echo \"Docker subnet \$subnet (gateway \$gateway) routed to NATS through ${RUNTIME_PRIVATE_IP} on \$vpc_if.\"
-    ip route get '${nats_host}'
-    iptables -S FORWARD | head -40
-    iptables -t nat -S POSTROUTING | head -40
+    proxyd=\$(command -v systemd-socket-proxyd || true)
+    if [ -z \"\$proxyd\" ]; then
+      for candidate in /usr/lib/systemd/systemd-socket-proxyd /lib/systemd/systemd-socket-proxyd; do
+        if [ -x \"\$candidate\" ]; then proxyd=\$candidate; break; fi
+      done
+    fi
+    test -n \"\$proxyd\"
+    printf '[Unit]\\nDescription=Raeburn Talent NATS relay socket\\n\\n[Socket]\\nListenStream=%s:14222\\nNoDelay=true\\nFreeBind=true\\n\\n[Install]\\nWantedBy=sockets.target\\n' "\$gateway" | sudo tee /etc/systemd/system/raeburn-talent-nats-relay.socket >/dev/null
+    printf '[Unit]\\nDescription=Raeburn Talent NATS relay\\nRequires=raeburn-talent-nats-relay.socket\\nAfter=network-online.target\\n\\n[Service]\\nExecStart=%s ${nats_host}:${nats_port}\\nPrivateTmp=true\\nNoNewPrivileges=true\\n' \"\$proxyd\" | sudo tee /etc/systemd/system/raeburn-talent-nats-relay.service >/dev/null
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now raeburn-talent-nats-relay.socket
+    sudo systemctl restart raeburn-talent-nats-relay.socket
+    iptables -C INPUT -s \"\$subnet\" -d \"\$gateway/32\" -p tcp --dport 14222 -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -s \"\$subnet\" -d \"\$gateway/32\" -p tcp --dport 14222 -j ACCEPT
+    sed -i '/^NATS_URL=/d' .env.production
+    printf 'NATS_URL=nats://%s:14222\\n' \"\$gateway\" >> .env.production
+    echo \"ATS containers will use NATS relay at \$gateway:14222 -> ${nats_host}:${nats_port}.\"
+    timeout 5 bash -lc \"</dev/tcp/\$gateway/14222\"\n    echo \"Host-local NATS relay is accepting connections.\"\n    systemctl --no-pager --full status raeburn-talent-nats-relay.socket | head -30
   "
 fi
 
