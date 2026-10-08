@@ -22,6 +22,7 @@ services:
     <<: *unit
     environment:
       UNIT_NAME: edge-api
+      NATS_URL: nats://nats:4222
       JOBS_URL: http://recruitment-core:4101
       CANDIDATES_URL: http://recruitment-core:4102
       APPLICATIONS_URL: http://recruitment-core:4103
@@ -56,11 +57,13 @@ services:
     <<: *unit
     environment:
       UNIT_NAME: recruitment-core
+      NATS_URL: nats://nats:4222
 
   selection:
     <<: *unit
     environment:
       UNIT_NAME: selection
+      NATS_URL: nats://nats:4222
       APPLICATIONS_URL: http://recruitment-core:4103
       CANDIDATES_URL: http://recruitment-core:4102
       JOBS_URL: http://recruitment-core:4101
@@ -69,6 +72,7 @@ services:
     <<: *unit
     environment:
       UNIT_NAME: experience
+      NATS_URL: nats://nats:4222
       APPLICATIONS_URL: http://recruitment-core:4103
       CANDIDATES_URL: http://recruitment-core:4102
       JOBS_URL: http://recruitment-core:4101
@@ -79,11 +83,13 @@ services:
     <<: *unit
     environment:
       UNIT_NAME: platform-control
+      NATS_URL: nats://nats:4222
 
   intelligence-data:
     <<: *unit
     environment:
       UNIT_NAME: intelligence-data
+      NATS_URL: nats://nats:4222
       APPLICATIONS_URL: http://recruitment-core:4103
       CANDIDATES_URL: http://recruitment-core:4102
       JOBS_URL: http://recruitment-core:4101
