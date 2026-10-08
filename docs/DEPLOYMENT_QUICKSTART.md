@@ -2,6 +2,11 @@
 
 This is the operator checklist for first production activation.
 
+If the current instruction is **zero additional spend**, do not follow the
+production sequence below. Use the existing staging environment only for the
+strictly internal, synthetic-data demonstration described in
+[`ZERO_INCREMENTAL_COST_PILOT.md`](ZERO_INCREMENTAL_COST_PILOT.md).
+
 ## What the repository now deploys
 
 - Backend: signed GHCR unit images deployed directly by GitHub Actions over SSH.
