@@ -150,8 +150,19 @@ jobs:
           set -euo pipefail
           read runtime runtime_private <<< "$(doctl compute droplet list --format Name,PublicIPv4,PrivateIPv4 --no-header | awk '$1=="raeburn-talent-staging-runtime"{print $2, $3}')"
           dbid=$(doctl databases list --format ID,Name --no-header | awk '$2=="raeburn-talent-staging-postgres"{print $1}')
+          require_value() {
+            local name="$1" value="$2"
+            if [ -z "$value" ]; then
+              echo "::error::Required staging resource is missing or inaccessible: $name"
+              exit 1
+            fi
+          }
+          require_value "runtime public IP" "$runtime"
+          require_value "runtime private IP" "$runtime_private"
+          require_value "managed PostgreSQL database" "$dbid"
           read dbhost dbport <<< "$(doctl databases connection "$dbid" --private --format Host,Port --no-header)"
-          test -n "$runtime" && test -n "$runtime_private" && test -n "$dbhost" && test -n "$dbport"
+          require_value "database private host" "$dbhost"
+          require_value "database private port" "$dbport"
           encoded=$(python3 - <<'PY'
           import os, urllib.parse
           print(urllib.parse.quote(os.environ["DATABASE_RUNTIME_PASSWORD"], safe=""))
@@ -230,8 +241,19 @@ jobs:
           set -euo pipefail
           read runtime runtime_private <<< "$(doctl compute droplet list --format Name,PublicIPv4,PrivateIPv4 --no-header | awk '$1=="raeburn-talent-production-runtime"{print $2, $3}')"
           dbid=$(doctl databases list --format ID,Name --no-header | awk '$2=="raeburn-talent-production-postgres"{print $1}')
+          require_value() {
+            local name="$1" value="$2"
+            if [ -z "$value" ]; then
+              echo "::error::Required production resource is missing or inaccessible: $name"
+              exit 1
+            fi
+          }
+          require_value "runtime public IP" "$runtime"
+          require_value "runtime private IP" "$runtime_private"
+          require_value "managed PostgreSQL database" "$dbid"
           read dbhost dbport <<< "$(doctl databases connection "$dbid" --private --format Host,Port --no-header)"
-          test -n "$runtime" && test -n "$runtime_private" && test -n "$dbhost" && test -n "$dbport"
+          require_value "database private host" "$dbhost"
+          require_value "database private port" "$dbport"
           encoded=$(python3 - <<'PY'
           import os, urllib.parse
           print(urllib.parse.quote(os.environ["DATABASE_RUNTIME_PASSWORD"], safe=""))
