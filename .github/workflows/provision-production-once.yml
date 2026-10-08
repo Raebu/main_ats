@@ -1,10 +1,18 @@
-name: Provision Production Infrastructure Once
+name: Provision Production Infrastructure
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/provision-production-once.yml"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Apply the reviewed production plan"
+        required: true
+        default: false
+        type: boolean
+      confirmation:
+        description: "Type APPLY_PRODUCTION to permit an apply"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -15,7 +23,7 @@ env:
   TF_STATE_ENDPOINT: "https://e01b58b8d08d2c97284b2a46a13f3815.r2.cloudflarestorage.com"
 
 jobs:
-  apply:
+  inspect-and-plan:
     environment: production
     runs-on: ubuntu-latest
     env:
@@ -64,11 +72,34 @@ jobs:
           EOF
           tofu -chdir=infrastructure/terraform init -input=false -backend-config=/tmp/backend.hcl
 
+      - name: Inspect existing production state
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A failed apply may have created a subset of resources. Record state before
+          # planning so that operators can distinguish managed resources from new work.
+          tofu -chdir=infrastructure/terraform state list | tee /tmp/production-state.txt
+
       - name: Validate production infrastructure
         run: |
           set -euo pipefail
           tofu fmt -check -recursive infrastructure/terraform
           tofu -chdir=infrastructure/terraform validate
+
+      - name: Refresh managed production resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          tofu -chdir=infrastructure/terraform plan -refresh-only -detailed-exitcode -input=false -var-file=production.tfvars.example > /tmp/production-refresh.txt 2>&1
+          status=$?
+          set -e
+          cat /tmp/production-refresh.txt
+          # Exit 2 means the refresh found drift, which is evidence to review rather
+          # than an invitation to overwrite provider state.
+          if [ "$status" -eq 1 ]; then
+            exit "$status"
+          fi
 
       - name: Plan production infrastructure
         run: |
@@ -76,7 +107,71 @@ jobs:
           tofu -chdir=infrastructure/terraform plan -input=false -out=/tmp/production.tfplan -var-file=production.tfvars.example
           tofu -chdir=infrastructure/terraform show -no-color /tmp/production.tfplan | tee /tmp/production-plan.txt
 
-      - name: Apply production infrastructure
+      - name: Refuse destructive production plans
+        run: |
+          set -euo pipefail
+          tofu -chdir=infrastructure/terraform show -json /tmp/production.tfplan > /tmp/production-plan.json
+          jq -e '[.resource_changes[]? | select(.change.actions | index("delete"))] | length == 0' /tmp/production-plan.json
+
+      - name: Upload inspection evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-infrastructure-inspection-${{ github.run_id }}
+          path: |
+            /tmp/production-state.txt
+            /tmp/production-refresh.txt
+            /tmp/production-plan.txt
+          retention-days: 14
+
+  apply:
+    needs: inspect-and-plan
+    if: inputs.apply && inputs.confirmation == 'APPLY_PRODUCTION'
+    environment: production
+    runs-on: ubuntu-latest
+    concurrency:
+      group: production-infrastructure
+      cancel-in-progress: false
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
+      AWS_EC2_METADATA_DISABLED: "true"
+      TF_VAR_digitalocean_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+      - name: Configure encrypted production state
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/backend.hcl <<EOF
+          bucket = "$TF_STATE_BUCKET"
+          key    = "production/terraform.tfstate"
+          region = "auto"
+          skip_credentials_validation = true
+          skip_metadata_api_check     = true
+          skip_region_validation      = true
+          skip_requesting_account_id  = true
+          skip_s3_checksum            = true
+          use_path_style              = true
+          endpoints = {
+            s3 = "$TF_STATE_ENDPOINT"
+          }
+          EOF
+          tofu -chdir=infrastructure/terraform init -input=false -backend-config=/tmp/backend.hcl
+
+      - name: Re-plan immediately before production apply
+        shell: bash
+        run: |
+          set -euo pipefail
+          tofu -chdir=infrastructure/terraform plan -input=false -out=/tmp/production.tfplan -var-file=production.tfvars.example
+          tofu -chdir=infrastructure/terraform show -json /tmp/production.tfplan > /tmp/production-plan.json
+          jq -e '[.resource_changes[]? | select(.change.actions | index("delete"))] | length == 0' /tmp/production-plan.json
+
+      - name: Apply reviewed production infrastructure
         run: |
           set -euo pipefail
           tofu -chdir=infrastructure/terraform apply -input=false -auto-approve /tmp/production.tfplan
